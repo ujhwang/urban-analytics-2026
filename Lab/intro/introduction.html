@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Intro to Intro to Urban Analytics</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Uijeong “UJ” Hwang" />
+    <meta name="date" content="2026-08-24" />
+    <script src="libs/header-attrs-2.28/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <script src="libs/kePrint-0.0.1/kePrint.js"></script>
+    <link href="libs/lightable-0.0.1/lightable.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/nhsr.css" type="text/css" />
+    <link rel="stylesheet" href="css/nhsr-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="css/policy.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+class: title-slide, left, bottom
+
+# Intro to Intro to Urban Analytics
+----
+### Uijeong "UJ" Hwang
+### August 24, 2026
+
+---
+class: inverse, middle, center
+
+## This is one of two required courses to complete
+###(other than the Capstone)
+# the Master of Science in Urban Analytics degree
+
+---
+#Get-to-Know-You Survey
+&lt;div style='position: relative; padding-bottom: 56.25%; padding-top: 35px; height: 0; overflow: hidden;'&gt;&lt;iframe sandbox='allow-scripts allow-same-origin allow-presentation' allowfullscreen='true' allowtransparency='true' frameborder='0' height='315' src='https://www.mentimeter.com/app/presentation/alsd15a6faj9rr7p1i5km4n7qvw68xyi/embed' style='position: absolute; top: 0; left: 0; width: 100%; height: 100%;' width='420'&gt;&lt;/iframe&gt;&lt;/div&gt;
+
+---
+
+# What is Urban Analytics?
+
+[Urban analytics defined](https://journals.sagepub.com/doi/full/10.1177/2399808319839494)
+
+--
+
+* Application of &lt;b&gt;Big data&lt;/b&gt; and &lt;b&gt;data science tools&lt;/b&gt; to understand, monitor, and control urban functions and processes
+
+--
+
+* Michael Goodchild defines it as a 'new kind of urban research, one that exploits the vast new sources that are becoming available from &lt;b&gt;social media, crowd sourcing, and sensor networks&lt;/b&gt;...'
+
+--
+
+* 'Urban analytics is fast emerging as the core set of tools employed to deal with problems of &lt;b&gt;big data, urban simulation, and geodemographics&lt;/b&gt;' -- Michael Batty
+
+--
+
+* Analytics is the &lt;b&gt;discovery, interpretation, and communication of meaningful patterns in data&lt;/b&gt;' --Wikipedia
+
+
+---
+#The Plan for the Course
+
+* This course consists of six modules (excluding the prep module)
+
+&lt;table style="font-size: 22px; width: 90%; margin: auto;"&gt;
+  &lt;tr&gt;
+    &lt;th style="text-align: left;"&gt;Module&lt;/th&gt;
+    &lt;th style="text-align: left;"&gt;Topic&lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 0:&lt;br&gt;Preparation&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Environment setup: R, RStudio, packages...&lt;/li&gt;
+        &lt;li&gt;Intro to R&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 1:&lt;br&gt;POI &amp; Census&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Using APIs to collect data&lt;/li&gt;
+        &lt;li&gt;Data wrangling and tidying&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 2:&lt;br&gt;Graphic communication &amp; &lt;br&gt;storytelling&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Interactive visualization&lt;/li&gt;
+        &lt;li&gt;Telling stories with data / analysis&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+
+---
+#The Plan for the Course
+
+* This course consists of six modules (excluding the prep module)
+
+&lt;table style="font-size: 22px; width: 90%; margin: auto;"&gt;
+  &lt;tr&gt;
+    &lt;th style="text-align: left;"&gt;Module&lt;/th&gt;
+    &lt;th style="text-align: left;"&gt;Topic&lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 3:&lt;br&gt;Transportation&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Using General Transit Feed Specification (GTFS)&lt;/li&gt;
+        &lt;li&gt;Network analysis with OpenStreetMap&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 4:&lt;br&gt;Urban image &amp; &lt;br&gt;computer vision&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Sampling and processing street view images&lt;/li&gt;
+        &lt;li&gt;Using Computer Vision to extract information from images&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 5:&lt;br&gt;Social media&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Collecting and processing text data from Reddit&lt;/li&gt;
+        &lt;li&gt;Sentiment analysis&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;Module 6:&lt;br&gt;Data ethics&lt;/td&gt;
+    &lt;td&gt;
+      &lt;ul&gt;
+        &lt;li&gt;Data ethics and privacy&lt;/li&gt;
+      &lt;/ul&gt;
+    &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+
+---
+# Deliverables and Grading Breakdown
+* Only four out of the five mini assignments will be counted towards the final grade.
+* **An assignment may be followed by a short quiz** in the next session. When there is one, the quiz score (0 to 1) multiplies that assignment's grade -- it is not separate credit.
+* The team project presentation is based on PowerPoint slides (or other presentation tool of your choice.)
+* The team project report should be a web document rendered from R Markdown (or other tool of your choice).
+
+&lt;table class="table table-condensed table-responsive" style="margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; Assignment Type &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; Percent &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Mini Assignments + Quizzes (4 out of 5) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 28% (7% each x 4) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Major Assignments + Quizzes (3 out of 3) &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 36% (12% each x 3) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Team Project Presentation &amp;amp; Report &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 30% (15% each) &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Participation &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 6% &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+# The Group Project
+
+Original research on an urban question **of your choosing**, using the data and methods we cover in class.
+
+**Forming groups** -- you form your own, **up to three people**. Do it early.
+
+### Three presentations
+
+.sm[
+| | When | What | Graded |
+|:--|:--|:--|:--|
+| 1 | Mid-Oct | Idea + related literature/examples | No |
+| 2 | Mid-Nov | Data, methods, preliminary results | No |
+| 3 | Early Dec | Final project | **Yes** |
+]
+
+.notebox[
+.sm[
+The first two are for feedback -- from me and from the class -- while there is still time to change direction. Only the final presentation is graded, along with the report.
+]
+]
+
+---
+# Using AI in This Course
+
+**You may use AI assistants.** They are part of how this work gets done now, and pretending otherwise would not help you.
+
+The rule is one sentence:
+
+.okbox[
+### Use them in a way that **helps** your learning, not in a way that **skips** it.
+]
+
+.sm[
+Asking an AI to *explain* an error, a function, or a concept helps you. Handing in code you have not read does not -- and it leaves you unable to debug it, defend it, or build on it.
+]
+
+---
+# Using AI: Two Penalties
+
+.sm[
+Two things carry a penalty. Both are about **blind** use.
+]
+
+.penaltybox[
+.sm[
+**1. Turning in AI output you have not digested.**
+Where it is obvious the code was pasted in without being read, understood, or adapted to the question actually asked.
+
+.deduction[&amp;minus;50% per occurrence]
+]
+]
+
+.penaltybox[
+.sm[
+**2. Taking an unnecessarily complicated detour** when a simple approach we covered in class would do the job -- and giving no reason for it.
+
+.deduction[&amp;minus;25% per occurrence]
+]
+]
+
+.sm[
+If you have a *reason* for the more complicated route, say so in your script. A sentence is enough. This penalty is for detours with no rationale, not for ambition.
+]
+
+---
+# Quizzes After Assignments
+
+**Some** assignments -- mini or major -- are followed by a short quiz in the next session.
+
+* Simple, direct questions about the assignment you just submitted.
+* Anyone who genuinely did the work will find them easy.
+* Scored **0 to 1**, applied as a **multiplier on that assignment's grade**.
+* **You get one wrong answer for free.** Beyond that, the multiplier scales proportionally.
+
+.notebox[
+.sm[
+No quiz means no multiplier -- that assignment's score stands on its own. The quiz is not extra points; it checks that what you handed in is work you understand.
+]
+]
+
+### If you miss a quiz
+
+.sm[
+* **Mini** &amp;rarr; that becomes your dropped assignment. Nothing to do.
+* **Major** &amp;rarr; join that week's office hour for a short oral make-up.
+]
+
+---
+# How to Succeed in This Class
+
+.small[
+1. **Expect some frustration.** It is part of learning to program. But don't spin your wheels -- you are responsible for actively looking for help, and for not leaving things to the last minute.
+
+2. **Replicate, don't just read.** Run the examples, reproduce the results, and repeat until it makes sense.
+
+3. **Work with peers.** Talk through problems and let their sharp eyes catch your bugs -- but type your own code. Passing code for assignments between students is not collaboration.
+
+4. **Google it.** Almost every problem you hit this semester, someone has hit and solved already. Troubleshooting on your own is a skill that outlasts this course.
+
+5. **Ask me.** Anytime, in class or out. Office hours are another learning opportunity, not a last resort.
+]
+
+---
+#Course Logistics
+
+###Platform
+* RStudio (almost entirely)
+* You will install R and RStudio on your own machine in the next session
+
+### Each module consists of
+* One or two lecture sessions
+* Two lab sessions
+
+### For each lab sessions, you will be given
+* One incomplete R Markdown script
+* One HTML document generated from the complete R Markdown script
+
+---
+#Course Logistics
+
+.pull-left[
+.sm[
+###Office hour
+* Thursday 4:30-6:30pm, online (Google Meet), by appointment, 15-minute slot
+
+###Communication
+* Canvas
+* Email: uhwang@atlantaregional.org; &lt;br&gt;uhwang3@gatech.edu
+]
+]
+
+.pull-right[
+.sm[
+### Readings
+* Available via links in the syllabus
+* Not required, but highly recommended
+
+### Assignments
+* Render R Markdown script into a web document and publish it to RPubs
+* Submit the URL to the web document
+]
+]
+
+## Any questions?
+
+---
+# Before the next session
+
+### Wednesday, August 26
+
+* Nothing required -- we will install R and RStudio together in class.
+
+* If you want a head start, download [R](https://cran.rstudio.com/) and then [RStudio Desktop](https://posit.co/download/rstudio-desktop/) -- **in that order**. RStudio looks for an R installation when it starts, so the other order means it comes up empty.
+
+---
+# Previous Group Projects
+
+.compactlist[
+### Fall 2023
+* [Tracking Urban Rails-to-trails Discourse on Reddit](https://mohsinyousufi.github.io/cp8883report/)
+* [How Do Flood Events Affect Street Networks &amp; Outdoor Activity?](https://rpubs.com/ppatty666/uaprojectfinalv3)
+* [Predictive Modeling of the Perception of Liveliness in Atlanta Using Place Pulse and Google Street View Data](https://rpubs.com/runner157/1124596)
+
+### Fall 2024
+* [Spatiotemporal Analysis of Imbalanced Parking Demand and Supply](https://thanawit.com/projects/ImbalancedParkingAnalysis/)
+* [Analyzing the Impact of Commercial Freight Vehicles on Traffic Safety in Metro Atlanta](https://rpubs.com/jake_mcghee/1250849)
+* [How Well Are Cities In Georgia Equipped To Prepare For And Withstand Hurricanes?](https://rpubs.com/klosada/1254375)
+* [LEED Certification: The Paradox of Sustainability?](https://rpubs.com/changminseok88/1254221)
+
+### Fall 2025
+* [Who benefits from rail-to-trail initiatives? Assessing the Atlanta Beltline green infrastructure through a quality-equity lens](https://rpubs.com/vivianlin/CP8883FinalProject)
+* [How does the level of positive sentiment from park visitors correlate with the number of visitors in POIs nearby parks?](https://rpubs.com/ArchSynn/finalreport_UA)
+* [Analyzing the Impact of Accessibility to Food Retail Environment on Obesity in Atlanta](https://rpubs.com/hojung/ua_final_report)
+]
+
+---
+#Example of MSUA Capstone: Covid-19 &amp; eating habit
+&lt;a href="https://ujhwang.github.io/covid-19-eating-habit"&gt;&lt;img src="img/covid-19-eating-habit_merge.gif"&gt;&lt;/a&gt;
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "highlightStyle": "googlecode",
+  "highlightLines": true,
+  "highlightLanguage": "r",
+  "countIncrementalSlides": false,
+  "ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

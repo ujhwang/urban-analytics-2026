@@ -1,0 +1,38 @@
+/* CP8883 -- boxes used on the AI policy and quiz slides */
+
+.penaltybox {
+  background-color: #FDECEA;
+  border-left: 7px solid #DA291C;
+  padding: 0.5em 1em;
+  margin: 0.4em 0;
+}
+
+.notebox {
+  background-color: #FFF6E0;
+  border-left: 7px solid #FFB81C;
+  padding: 0.5em 1em;
+  margin: 0.4em 0;
+}
+
+.okbox {
+  background-color: #E8F4EC;
+  border-left: 7px solid #009639;
+  padding: 0.5em 1em;
+  margin: 0.4em 0;
+}
+
+.sm { font-size: 88%; }
+
+.deduction {
+  color: #DA291C;
+  font-weight: 700;
+}
+
+/* Compact list for the Previous Group Projects slide (three cohorts) */
+.compactlist { font-size: 73%; }
+.compactlist h3 {
+  font-size: 1.15em;
+  margin: 0.5em 0 0.15em 0;
+}
+.compactlist ul { margin: 0.1em 0 0.3em 0; }
+.compactlist li { margin-bottom: 0.1em; line-height: 1.35; }
