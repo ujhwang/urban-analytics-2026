@@ -1,4 +1,4 @@
-GEOID,tract,county,state,hhincome,race.tot,race.white,race.black
+GEOID,tract,county,state,hhincome,pop_total,pop_white,pop_black
 13063040307,Census Tract 403.07,Clayton County,Georgia,37064,4939,1442,1784
 13063040512,Census Tract 405.12,Clayton County,Georgia,36414,5478,351,4996
 13063040519,Census Tract 405.19,Clayton County,Georgia,32568,4380,35,4178
