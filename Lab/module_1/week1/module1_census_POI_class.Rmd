@@ -1,0 +1,506 @@
+---
+title: "Census & Google Places API"
+author: 'Uijeong "UJ" Hwang'
+date: '2026-09-14'
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+
+```{r echo=F, message=F, warning=F}
+library(tidycensus)
+library(sf)
+library(tmap)
+library(jsonlite)
+library(tidyverse)
+library(httr)
+library(here)
+library(knitr)
+```
+
+# Getting data through API
+In this document, we will use API (application programming interface) to acquire data from the Census Bureau and the Google Maps Platform. According to Wikipedia, *"An API is a way for two or more computer programs to communicate with each other."* There are many different types of APIs, but we will focus on the most common type: the REST (REpresentational State Transfer) API. A REST API is a web-based interface that allows clients to interact with a server’s resources using standard HTTP methods. To use REST (or similar HTTP) APIs, we specify an endpoint on the API server and append additional parameters that describe the request.
+
+For example, the following request sends a query to the Open-Meteo public API to retrieve an hourly temperature forecast for the specified coordinates. The part of the URL before the question mark is the endpoint, and the part after the question mark consists of parameters in this format: `[key]=[value]&[key]=[value]&...`.
+
+> `https://api.open-meteo.com/v1/forecast?latitude=33.774766&longitude=-84.397389&hourly=temperature_2m&forecast_days=1`
+
+If you copy and paste this link into your browser, you will see something like this:
+
+```{r echo=F, out.width='100%'}
+knitr::include_graphics("https://ujhwang.github.io/urban-analytics-2026/Lab/module_1/week1/img/open_meteo_api.png")
+```
+
+> Try adding `temperature_unit=fahrenheit` and see how the result changes.
+
+In R, we can call HTTP methods (e.g., `GET` and `POST`) using the **httr** package to send API requests to the server. The JSON response can be parsed and reformatted into a data.frame using the **jsonlite** package. 
+
+
+# Getting familiar with Google Places API and Nearby Search
+All APIs are different in their design and functionality. It is essential to understand the available endpoints and the required parameters; therefore, the first step is to [**READ THE API DOCUMENTATION**](https://developers.google.com/maps/documentation/places/web-service/op-overview).
+
+The Google Places API provides several endpoints, including Place Details, Place Photos, Nearby Search, Text Search, and Autocomplete. Among these, Nearby Search and Text Search allow us to search for places by place type and location. The key difference is that “Text Search lets you specify an arbitrary search string, whereas Nearby Search requires a specific area in which to search.” Note that Place Details and Place Photos must be used after Nearby Search or Text Search, as they require unique IDs (place ID and photo ID, respectively) that are returned by those search endpoints.
+
+We will use the Nearby Search. Let's look at the required parameters of [Nearby Search](https://developers.google.com/maps/documentation/places/web-service/nearby-search).
+
+
+* Nearby Search has two types of required parameters: `locationRestriction` and `FieldMask`
+
+* `locationRestriction` specifies the search location and radius:
+  * `location`: latitude and longitude (e.g., 33.774766, -84.397389)
+  * `radius`: (0-50,000 meters; default is 0)
+
+* `FieldMask` specifies what information you want to get from the places in the search area ([place data fields](https://developers.google.com/maps/documentation/places/web-service/data-fields)).
+
+```{r echo=F, out.width='100%'}
+knitr::include_graphics("https://ujhwang.github.io/urban-analytics-2026/Lab/module_1/week1/img/field_mask_1.png")
+knitr::include_graphics("https://ujhwang.github.io/urban-analytics-2026/Lab/module_1/week1/img/field_mask_2.png")
+```
+
+* Each field in the FieldMask has a different cost, which is represented by a SKU (Stock Keeping Unit). A SKU is just a unique ID for a specific product or service. Each SKU carries its own free monthly allowance, and the allowances do **not** pool across SKUs. A request is billed at the **highest tier** among the fields you ask for, so one call always bills to exactly one SKU. The fields we request below fall under *Nearby Search Pro*, which allows 5,000 free calls per month. **Make sure to check the [free monthly quota](https://developers.google.com/maps/billing-and-pricing/pricing) for each SKU and keep an eye on your usage in the Google Cloud Console**.
+
+* Although optional, `includedTypes` is one of the most important parameters. We need to specify the place types to get the POIs we want.
+  * Here is the list of [place types](https://developers.google.com/maps/documentation/places/web-service/place-types).
+
+
+# Downloading Census Block Group polygons through the Census API
+An important limitation of the Nearby Search is that **it returns up to 20 places per query**. It means if you are expecting more than 20 places from your search, **you would need to break your search into smaller bits to ensure that you get less than 20 for each query**.
+
+In this document, we will use Census Block Group (BG) boundary as a device to break down the city of Decatur into smaller bits so that each search would not return more than 20 places. Census BG is useful for this purpose because, by definition, the size of Census BG is proportional to the population size (600-3,000 people). Assuming that there are more POIs in more populous area, we can roughly expect that the size of Census BG would be proportional to the number of POIs.
+
+The Census bureau provides API. There is a convenient R package that makes accessing Census API easy, called *tidycensus*. The package has **get_acs()** function that can download American Community Service (ACS) directly into your R session as an sf object.
+
+## Census API Key
+First of all, we need to obtain a Census API Key. Go to [https://api.census.gov/data/key_signup.html](https://api.census.gov/data/key_signup.html) and request a key. It will be sent to your email account. To use the `tidycensus` package, you must authenticate with your key using: `census_api_key("your-API-key-here")`.
+
+> **Remember that everything on Rpubs is public. If you include your API key in R Markdown, it will be public as well. This is DANGEROUS. Instead, you can store the key as your environment variable and call it using *Sys.getenv()* function.**
+
+> Tip: if you name your environment variable exactly `CENSUS_API_KEY`, `tidycensus` picks it up on its own and you can skip the `census_api_key()` call entirely.
+
+```{r}
+# What is the NAME of the environment variable holding your Census key?
+tidycensus::census_api_key(Sys.getenv(????))
+```
+
+## Getting Census BG Boundary
+To use `get_acs()`, we first should understand what arguments are needed. Try `?tidycensus::get_acs` in your console to check the documentation for this function.
+
+```{r echo=F, out.width='100%'}
+knitr::include_graphics("https://ujhwang.github.io/urban-analytics-2026/Lab/module_1/week1/img/get_acs.png")
+```
+
+We will specify the following argument and leave the rest as default: geography, state, county, variables, year, survey, geometry, and output.
+Notice that we can also specify **variables** argument. You can provide variable ID to specify the variables you want to download. You can (1) use **load_variables()** function to see all variable ID, (2) go to Census Bureau [website](https://data.census.gov/cedsci/) to see the variable ID, or (3) some other sources, such as [NHGIS](https://www.nhgis.org/).
+
+```{r results='hide'}
+# Get block groups
+bg <- suppressMessages(
+  tidycensus::get_acs(geography = ????, # or "block", "tract", "county", "state" etc.
+                      state = "GA",
+                      county = c("Dekalb"),
+                      variables = c(hhincome = '??????_???'), # median household income. Find the ID with load_variables() or on NHGIS
+                      year = 2024,
+                      survey = ????, # we typically use American Community Survey 5-year estimates
+                      geometry = ????, # we need an sf object
+                      output = "wide") # wide vs. long
+)
+
+# City of Decatur boundary
+decatur <- tigris::places('GA') %>% filter(NAME == 'Decatur')
+
+# Get BGs intersecting with the City of Decatur boundary.
+# sf lets you subset one layer by another using [ ]: layer_you_keep[layer_that_filters, ]
+bg_decatur <- ????[????, ]
+```
+
+<br>
+  Running the code above downloads a data.frame with geometry column-list (i.e., sf object). There are `r nrow(bg_decatur)` rows and `r ncol(bg_decatur)` columns. Also notice that we get **two variables** for each variable ID we requested, one with E and the other with M at the end of their names. E is the **e**stimate and M is the associated **m**argin of error coming from the fact that the ACS data is based on a sample.
+
+```{r}
+# View the data
+bg_decatur %>% head() %>% knitr::kable() # Ignore kable(). This function is for neatly displaying tables on HTML document.
+```
+
+For simplicity, we will keep columns that end with E and discard those that end with M. Notice that the **select()** verb from dplyr can not only select columns but can change names as well.
+```{r}
+bg_decatur <- bg_decatur %>%
+  select(GEOID,
+         hhincome = hhincomeE) # New name = old name
+
+tmap_mode("view")
+tm_shape(bg_decatur) + tm_borders(lwd = 2) +
+  tm_shape(decatur) + tm_polygons(fill = 'red', fill_alpha = 0.4)
+```
+
+
+# Preparing location parameters for the Nearby Search
+
+## Using Census BGs
+
+We are going to use the Census BG data to obtain the information needed for the `locationRestriction` parameter in the Nearby Search. Specifically, we will:
+  
+1. Select a Census BG.
+2. Create a bounding box (bbox) and get its centroid using `st_centroid()`. This will be `latitude` and `longitude` information for the Nearby Search.
+3. Calculate a `radius` $r$ such that a circle with radius $r$ centered at the `latitude` and `longitude` completely covers the Census BG polygon.
+4. Send an API request using this circle and process the response.
+5. Repeat steps 1 ~ 4 for all Census BGs to obtain all POIs in the City of Decatur.
+
+For Steps 2 and 3, We define a function that calculates the `longitude`, `latitude`, and `radius` value. To ensure that we draw a circle that encapsulates a given polygon, we need to figure out the distance between the centroid (which will be the center of the circle) and the furthest point of the polygon. By definition, bounding box of a polygon A is drawn such that all points that make A is inside the bounding box. If we can draw a bounding box around each polygon and calculate the distance from the centroid to one of the corners of the bounding box, that will be the radius of the circle.
+
+```{r}
+# Function: Get XY coordinates and radius
+getXYRadius <- function(polygon, gcs_id, pcs_id){
+
+  # Transform the CRS to PCS. WHY?
+  # (distances have to come out in meters, so we need the projected system here)
+  if (st_crs(polygon) != st_crs(pcs_id)){
+    polygon <- polygon %>% st_transform(????)
+  }
+
+  # Get bounding box of a given polygon
+  bb <- st_bbox(polygon)
+
+  # Get XY coordinates of any one corner of the bounding box.
+  bb_corner <- st_point(c(bb[1], bb[2])) %>% st_sfc(crs = pcs_id)
+
+  # Get centroid of the bb.
+  # Which sf function returns the geometric center of a geometry?
+  bb_center <- bb %>% st_as_sfc() %>% ????()
+
+  # Get the distance between bb_center and bb_corner.
+  # That distance is exactly the radius we are after.
+  r <- st_distance(????, ????)
+
+  # Convert the CRS of centroid to GCS. WHY?
+  # (the Places API expects longitude/latitude, not meters)
+  bb_center <- bb_center %>% st_transform(????)
+
+  # Get longitude and latitude
+  xy <- bb_center %>% st_coordinates() %>% as.vector()
+
+  lon_lat_radius <- data.frame(x = xy[1],
+                               y = xy[2],
+                               r = r)
+
+  return(lon_lat_radius)
+}
+```
+
+We can apply this function to each BG.
+```{r}
+# Define EPSG codes for GCS (WGS 84) and PCS (WGS 84 / UTM zone 16N)
+gcs_id <- ????
+pcs_id <- ????
+
+# Pre-allocate a data frame. Results will fill this data frame
+bg_decatur_xyr <- data.frame(x = numeric(nrow(bg_decatur)),
+                             y = NA,
+                             r = NA)
+
+# Do a for-loop
+for (i in 1:nrow(bg_decatur)){
+  bg_decatur_xyr[i,] <- bg_decatur[i, ] %>%
+    getXYRadius(gcs_id = gcs_id,
+                pcs_id = pcs_id)
+}
+
+```
+
+Let's visualize what we've just done.
+```{r}
+tmap_mode('view')
+
+bg_decatur_xyr %>%
+  # Convert the data frame into an sf object
+  st_as_sf(coords = c("x", "y"), crs = st_crs(bg_decatur)) %>%
+  # Draw a buffer centered at the centroid of BG polygons.
+  # The buffer distance is the radius we just calculated
+  st_buffer(dist = .$r) %>%
+  # Display this buffer in red
+  tm_shape(.) + tm_polygons(fill = 'red', fill_alpha = 0.1) +
+  # Display the original polygon in blue
+  tm_shape(bg_decatur) + tm_borders(col = 'blue')
+```
+
+<br>
+
+## Another way to divide an area: creating a fishnet grid
+
+Using the Census boundary is not the only way to break down Decatur into smaller bits.
+Can you read the code below and explain what is being done here?
+
+```{r}
+# gcs_id and pcs_id are already defined above -- we reuse them here.
+
+# Get bbox for Decatur
+decatur_bb <- decatur %>% st_transform(pcs_id) %>% st_bbox()
+
+# Find coordinates for the four sides of the bbox
+west <- decatur_bb[1]
+east <- decatur_bb[3]
+south <- decatur_bb[2]
+north <- decatur_bb[4]
+
+# Split the bbox into a grid
+fishnet_n <- 4
+dist <- abs(east - west)/fishnet_n
+
+# Fishnet points
+fish_x <- seq(from = west, to = east, by = dist)
+fish_y <- seq(from = south, to = north, by = dist)
+
+fishnet <- expand.grid(fish_x, fish_y) %>%
+  rename(x = Var1, y = Var2) %>%
+  st_as_sf(coords = c('x', 'y'), crs = pcs_id)
+
+fishnet$x <- fishnet %>% st_transform(gcs_id) %>% st_coordinates() %>% .[,1]
+fishnet$y <- fishnet %>% st_transform(gcs_id) %>% st_coordinates() %>% .[,2]
+fishnet$r <- dist*(2^(1/2)/2) # WHAT is happening here?
+
+# Visualize it
+fishnet %>% 
+  st_buffer(dist = .$r) %>% 
+  tm_shape() +
+  tm_polygons(fill = 'red', fill_alpha = 0.1) +
+  tm_shape(decatur) + tm_borders(lwd = 3)
+
+```
+
+
+<br>
+
+
+# Requesting the Google Places API
+
+> Before proceeding, make sure your Google API key is set up and registered as an environment variable on your system.
+
+## API Request
+
+Let's send a Nearby Search request using POST (an HTTP method) and parse the response.
+
+```{r}
+library(httr)
+
+google_api_key <- Sys.getenv(????) # the NAME of the environment variable holding your Google key
+lat <- 33.792479 # Atlantic Station
+lon <- -84.396761 # Atlantic Station
+radius <- ???? # 1 mile in meters
+
+endpoint <- ???? # Nearby Search endpoint
+
+body <- list(
+  includedTypes = list("mexican_restaurant"),
+  locationRestriction = list(
+    circle = list(
+      center = list(latitude = lat, longitude = lon),
+      radius = radius
+    )
+  )
+)
+
+resp <- POST(
+  endpoint,
+  add_headers(
+    "Content-Type" = "application/json",
+    "X-Goog-Api-Key" = google_api_key,
+    "X-Goog-FieldMask" = "places.displayName,places.formattedAddress,places.types"),
+  body = body,
+  encode = "json"
+)
+```
+
+## API Response
+
+### HTTP response object
+
+If you print `resp` which is an outcome of the POST call, it shows the API response object which includes headers, status code, size, and the JSON body preview.
+```{r}
+print(resp) # metadata + body
+```
+
+### Content from the response
+
+To actually use the data, you would extract the content and then parse it.
+```{r}
+# Extract content from a request
+data <- content(resp, as="text")
+
+# Parse JSON into a list and turn it into a data frame
+data <- jsonlite::fromJSON(data, flatten = T) %>% as.data.frame()
+```
+
+By running `names(data)`, we can see that the data contains (1) types, (2) formatted address, and (3) display name, which are the three pieces of information we requested.
+
+```{r}
+names(data)
+```
+
+The data indicates that there are `r nrow(data)` Mexican restaurants within one mile of Atlantic Station. Does this list look accurate to you?
+
+```{r}
+print(data)
+```
+
+## Custom API function
+
+Now that we have confirmed the API is working, we will create a function to handle the API request and process the response. For convenience, the function accepts the `place type` and `field mask` parameters as vectors, but inside the function these are converted into a list and a comma-separated string, respectively, to comply with the required format.
+
+```{r}
+nearbySearch <- function(lat, lon, radius, types_vec, fieldmask_vec, google_api_key){
+  
+  endpoint <- ???? # Nearby Search endpoint
+  
+  body <- list(
+    includedTypes = as.list(types_vec),
+    locationRestriction = list(
+      circle = list(
+        center = list(latitude = lat, longitude = lon),
+        radius = radius
+      )
+    ),
+    rankPreference = "DISTANCE" # WHAT does this parameter do? and WHY is this added?
+  )
+  
+  resp <- POST(
+    endpoint,
+    add_headers(
+      "Content-Type" = "application/json",
+      "X-Goog-Api-Key" = google_api_key,
+      "X-Goog-FieldMask" = paste(fieldmask_vec, collapse = ",")),
+    body = body,
+    encode = "json"
+  )
+  
+  data <- content(resp, as="text") %>% 
+    jsonlite::fromJSON(flatten = T) %>% 
+    as.data.frame()
+  
+  if (nrow(data) == 20){
+    print("WARNING: The response has 20 rows! Consider using a smaller spatial unit.")
+  }
+  
+  return(data)
+}
+```
+
+Now we have our own Nearby Search API function that sends a request and gets the response in a data frame format. The following function call will return the same result as what we have seen above.
+
+```{r eval=F}
+nearbySearch(lat = 33.792479,
+             lon = -84.396761,
+             radius = ????, # same one mile, in meters
+             types_vec = c("mexican_restaurant"),
+             fieldmask_vec = c("places.displayName",
+                               "places.formattedAddress",
+                               "places.types"),
+             google_api_key = Sys.getenv(????)) # same variable name as before
+
+```
+
+# Downloading and saving the POI data
+
+## Applying the function to all Census BGs
+
+Now that we have the Nearby Search API function, we can repeat this process for all the Census BGs using the `bg_decatur_xyr` object we created earlier. 
+
+Now we change the place type to pizza place ([place types](https://developers.google.com/maps/documentation/places/web-service/place-types)). Also, let's request a lot more information this time.
+
+```{r}
+# Pre-allocate the list. How many elements do we need -- one per what?
+data_list <- vector("list", ????)
+
+# In the four lines below, what belongs in the brackets? We need the current loop counter.
+for (i in seq_len(nrow(bg_decatur_xyr))) {
+
+  data_list[[????]] <- nearbySearch(
+    lat = bg_decatur_xyr$y[????],
+    lon = bg_decatur_xyr$x[????],
+    radius = bg_decatur_xyr$r[????],
+    types_vec = c(????), # pizza place
+    fieldmask_vec = c("places.id",
+                      "places.displayName",
+                      "places.formattedAddress",
+                      "places.location",
+                      "places.types",
+                      "places.primaryType",
+                      "places.businessStatus",
+                      "places.priceLevel",
+                      "places.priceRange",
+                      "places.rating",
+                      "places.userRatingCount",
+                      "places.reviews",
+                      "places.reviewSummary",
+                      "places.delivery",
+                      "places.dineIn",
+                      "places.takeout",
+                      "places.menuForChildren",
+                      "places.outdoorSeating",
+                      "places.allowsDogs"),
+    google_api_key = Sys.getenv(????) # same variable name as before
+  )
+
+  Sys.sleep(1) # WHY?
+}
+
+# Stack the list of data frames into a single one. Which dplyr function does that?
+data_all <- dplyr::????(data_list)
+```
+
+## Saving the data
+Save the data as an RDS file. We will use it in the next lab session. If you prefer, you can save it as an RData file instead. Just don’t save it as a CSV or any other tabular format.
+```{r}
+# Which readr function writes an object to an .rds file?
+????(data_all, 'google_poi_data.rds')
+```
+
+## Glimpse
+We have collected Google Places data on pizza restaurants in Decatur. The dataset contains `r nrow(data_all)` rows and `r ncol(data_all)` columns. We will examine it more closely in the next lab session. For now, let's just map the locations.
+
+```{r}
+# Convert the data to an sf object using XY coordinates
+data_all_sf <- data_all %>%
+  rename(x = places.location.longitude, y = places.location.latitude) %>%
+  filter(!is.na(x) & !is.na(y)) %>%
+  # The API returns longitude/latitude. Which EPSG code describes those coordinates?
+  st_as_sf(coords = c("x", "y"), crs = ????)
+
+# Map
+tm_shape(data_all_sf) + 
+  tm_dots(fill = "places.rating",
+          fill.scale = tm_scale_continuous(values = "magma"),
+          size = "places.userRatingCount",
+          size.scale = tm_scale_continuous(values.scale = 2),
+          size.legend = tm_legend_hide(),
+          col = "black", 
+          shape = 21, # tm_dots defaults to a shape with no outline
+          popup.vars = c("Name" = "places.displayName.text",
+                         "Rating" = "places.rating",
+                         "Rating Count" = "places.userRatingCount")) +
+  tm_shape(decatur) + 
+  tm_borders()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

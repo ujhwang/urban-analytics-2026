@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Accessing Data Through API</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Uijeong Hwang" />
+    <meta name="date" content="2026-09-09" />
+    <script src="libs/header-attrs-2.28/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/sydney-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="assets/sydney.css" type="text/css" />
+    <link rel="stylesheet" href="assets/inline-code.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+class: middle, inverse
+
+# Accessing data through API
+
+.font100[
+Uijeong "UJ" Hwang
+
+9/9/2026
+]
+
+
+
+
+
+---
+## Class Module Logistics
+* Each module includes:
+  - **Rmd**: Hands-on materials.
+  - **HTML**: Rendered output from the Rmd file.
+  - **Slides**: Prerequisite information for the hands-on materials.
+* After covering the lecture slides, you will work on the materials at your own pace.
+* You follow the materials in both the Rmd file and HTML document simultaneously.
+* You run each R code chunk in the Rmd file and digest what it does/means.
+* Ask as many questions as possible!
+
+---
+## Content
+* What is an API?
+* Anatomy of a request
+* Census API &amp; tidycensus
+* Google Places API
+* Keeping your API keys safe
+
+### Today's goals
+* Get Census and Google API keys
+* Store them as environment variables
+
+---
+## What is API?
+
+### Application Programming Interface
+A mechanism for two computing interfaces (often a client and a server) to talk to each other using a set of definitions and protocols.
+
+--
+### Examples:
+
+--
+* ACS data from Census
+* POI data from Google Maps Platform
+* Weather information on your phone
+* Crime stats from Police Crime Servers
+
+
+---
+## Communication type
+* REST (REpresentational State Transfer)
+  * Most common and lightweight
+  * Request-response protocol using HTTP: GET; POST; PUT; DELETE
+* WebSocket
+  * A protocol for real-time communication between client and server
+  * Suitable for trading platforms or chat apps
+* GraphQL
+  * A modern query language for APIs
+  * Popular in apps with complex data such as GitHub API
+* SOAP (Simple Object Access Protocol)
+  * An older, XML-based API style
+  * Very strict rules, designed for reliability and security
+
+---
+## How Do REST APIs Work?
+- Request - The client computer sends a request using HTTP method using commands such as GET, PUT, POST, DELETE etc., (GET new data, PUT/POST update/Create, etc.)
+- Route - The server maps the request to a specific endpoint, a URL that corresponds to a specific resource or action (one endpoint is usually associated with one resource)
+- Process - The server performs the requested action and generates a response
+- Response - The server sends the response back to the client. The response includes the information / data that the client was requesting
+- Client Processing - the client receives the response and processes it (such as formatted for display or input for another application)
+
+---
+## Anatomy of a request
+
+A REST request is just a URL: an **endpoint**, then **parameters** after the `?`.
+
+.center[
+.footnotesize[
+`https://api.open-meteo.com/v1/forecast`&lt;br&gt;`?latitude=33.774766&amp;longitude=-84.397389&amp;hourly=temperature_2m&amp;forecast_days=1`
+]
+]
+  
+  
+--
+.pull-left[
+.footnotesize[
+**Endpoint** -- *which resource*
+
+`https://api.open-meteo.com/v1/forecast`
+
+**Parameters** -- *which slice of it*
+
+`?` starts them, `&amp;` separates them, and each one is a `key=value` pair.
+]
+]
+.pull-right[
+.footnotesize[
+| key | value |
+|:---|:---|
+| `latitude` | `33.774766` |
+| `longitude` | `-84.397389` |
+| `hourly` | `temperature_2m` |
+| `forecast_days` | `1` |
+]
+]
+
+--
+  
+.content-box-yellow[
+**Try it right now.** Paste that URL into your browser. No key, no billing, no R. Then add `&amp;temperature_unit=fahrenheit` and watch the numbers change.
+]
+
+---
+## Two ways to ask: GET and POST
+
+**GET** -- everything travels in the URL. This is how `tidycensus` talks to the Census API.
+
+.small[
+
+```r
+GET("https://api.census.gov/data/2024/acs/acs5?get=B19013_001E&amp;for=tract:*&amp;in=state:13")
+```
+]
+
+--
+
+**POST** -- the request is too big or too structured for a URL, so it travels in a **body**. This is how we will call Google Places.
+
+.small[
+
+```r
+POST(url,
+     add_headers("X-Goog-Api-Key" = google_api_key),
+     body = list(includedTypes = list("restaurant"), maxResultCount = 20),
+     encode = "json")
+```
+]
+
+--
+
+.content-box-yellow[
+Rule of thumb: if you can paste it into a browser and see data, it is a **GET**.
+]
+
+---
+## What comes back: status codes
+
+Every response carries a **status code**. Check it *before* you try to parse anything.
+
+.small[
+| Code | Meaning | What it means for you |
+|:---|:---|:---|
+| **200** | OK | Go ahead and parse the body |
+| **400** | Bad Request | A parameter is malformed or missing |
+| **401 / 403** | Unauthorized / Forbidden | Key missing, wrong, or the API is not enabled |
+| **429** | Too Many Requests | You hit a rate limit; slow down, add a pause |
+| **5xx** | Server Error | Not your fault; wait and retry |
+]
+
+.small[
+
+```r
+res &lt;- httr::GET("https://api.open-meteo.com/v1/forecast?latitude=33.774766&amp;longitude=-84.397389&amp;hourly=temperature_2m&amp;forecast_days=1")
+print(res)
+```
+]
+
+.content-box-red[
+A **403** during today's hands-on almost always means one of two things: your key is not set, or the Places API is not enabled in your Google Cloud project.
+]
+
+---
+## Read the documentation first
+
+Every API is different. Before writing a single line of code, find these five things:
+
+1. **Endpoint** -- the URL for the resource you want
+2. **Required parameters** -- what you *must* send
+3. **Optional parameters** -- what shapes the result (`includedTypes`, `maxResultCount`)
+4. **Response** -- the shape of what comes back, field by field
+5. **Cost &amp; limits** -- free quota, rate limits, result caps
+
+--
+
+.content-box-yellow[
+This is the transferable skill. You will not memorize any one API. You will learn to read *any* API's reference page.
+]
+
+---
+## Census API
+
+* We will be using Census ACS data in every module.
+* Census ACS data will be downloaded within an R environment through Census API.
+* You need an API key, which can be acquired from **[here](https://api.census.gov/data/key_signup.html).**
+
+---
+## Tidycensus
+* `tidycensus` allows r users to download Census data (via the Census API) in **data frame** or **sf** formats.
+* To retrieve Census data using an R script, we need to know the code of the variable we want to access.
+  - For example, the code for median household income is B19013.
+* One quick way to search for the variable code is by using [National Historical GIS (NHGIS)](https://www.nhgis.org/).
+* Another method is to use a function within `tidycensus`.
+  - **`tidycensus::load_variables()`** provides a list of variables and their descriptions.
+
+---
+## Tidycensus syntax
+
+```r
+library(tidycensus)
+
+# hand your key to tidycensus for this session
+census_api_key(Sys.getenv("CENSUS_API_KEY"))
+
+census &lt;- get_acs(geography = "county",
+                  state = "GA",
+                  county = c("Fulton", "Cobb"),
+                  variables = c(med_income = "B19013_001"),
+                  year = 2024,
+                  geometry = TRUE)
+```
+
+--
+
+.content-box-green[
+`census_api_key()` tells `tidycensus` which key to use.
+
+You can **skip that line entirely** if you name your environment variable exactly **`CENSUS_API_KEY`** -- `tidycensus` looks for that name on its own.
+]
+
+---
+## NHGIS data finder
+&lt;img src="img/nhgis.jpg" width="1361" /&gt;
+
+---
+## Searching for Variables
+
+
+```r
+vars &lt;- load_variables(2024, "acs5")
+View(vars)
+```
+
+![](img/census_vars.png)
+
+---
+## Google Maps Platform API
+
+* A collection of APIs and SDKs from Google that let developers add maps, places, routes, and location data into apps and websites.
+
+[![](img/google_apis.png)](https://developers.google.com/maps/documentation)
+
+* How it works
+  * Accessed over the web using HTTP(S) requests
+  * Requires an API key from Google Cloud
+  * Usage is metered: charges if the free monthly allowance is exceeded
+
+---
+## Google Places API
+.pull-left[
+* "The Places API is a service that accepts HTTP requests for location data through a variety of methods. It returns formatted location data and imagery about establishments, geographic locations, or prominent points of interest." (https://developers.google.com/maps/documentation/places/web-service/overview)
+* Points-of-interest (POIs) are any physical location that people find significant, interesting, or useful, such as a restaurant, park, or historical site
+]
+.pull-right[
+![](img/tech_green.png)
+]
+
+---
+## Text Search and Nearby Search
+
+![](img/text_search_nearby_search.png)
+
+---
+## One catch: 20 results per query
+
+Nearby Search returns **at most 20 places**, no matter how large the radius.
+
+--
+
+* Query all of Decatur at once and you get 20 POIs, and silently lose every other one.
+* There is no "next page" for Nearby Search. 20 is a hard ceiling.
+
+--
+
+.content-box-yellow[
+**So we break the study area into small pieces** and send one query per piece.
+
+Each piece needs to be small enough to hold fewer than 20 POIs.
+]
+
+---
+## Using Census Tracts to get the search radius
+
+.small[
+1. Generate a **bounding box** of a given Census Tract
+2. Find the **centroid** of the bounding box
+3. Find the **radius** of search area from the centroid such that *the circle defined by the centroid and radius entirely contains the polygon*
+4. Send an API request using the centroid and radius
+5. Repeat this process for all Census Tracts
+* Depending on the type of POIs, Tract might be too big, in which case use Block Group
+]
+
+.center[
+&lt;img src="img/radius.png" width="250px" /&gt;
+]
+
+---
+## Nearby Search request
+&lt;img src="img/nearby_search_request.png" width="72%" /&gt;
+
+.footnotesize[
+Documentation for the Places API:
+
+[Places API overview](https://developers.google.com/maps/documentation/places/web-service/op-overview) | [Nearby Search reference](https://developers.google.com/maps/documentation/places/web-service/nearby-search) | [Place data fields](https://developers.google.com/maps/documentation/places/web-service/data-fields)
+]
+
+---
+## Google API services are not free
+
+Until March 2025, Google gave every project a single **$200/month credit** pooled across all APIs. **That credit is gone.**
+
+Now each **SKU** -- *Stock Keeping Unit* -- carries its own free monthly allowance, and the allowances do **not** pool across SKUs.
+
+.footnotesize[
+| SKU | Field example | Free calls per month |
+|:---|:---|:---|
+| Places API Nearby Search **Pro** | POI name, business status, and address | 5,000 |
+| Places API Nearby Search **Enterprise** | Review ratings and phone number | 1,000 |
+| Places API Nearby Search **Enterprise + Atmosphere** | whether a place is good for groups or allows dogs | 1,000 |
+]
+
+--
+.content-box-yellow[
+.small[
+**Which tier you are billed at depends on your `FieldMask`.** The fields you request determine the SKU. Each request is billed at the **highest tier** among the fields you ask for. One call bills to **one** SKU, so these do not stack.
+]
+]
+
+.footnotesize[
+[Pricing list](https://developers.google.com/maps/billing-and-pricing/pricing) | [What changed in March 2025](https://developers.google.com/maps/billing-and-pricing/march-2025)
+]
+
+---
+## Protecting your API key
+
+.small[
+* **Never hardcode a key.** Everything you publish to Rpubs is public.
+  * Store it as an environment variable and read it with `Sys.getenv()`.
+]
+
+--
+
+.small[
+* **Restrict the key** in the Google Cloud Console: limit it to the specific APIs it needs, and to your IP address or referrer.
+]
+
+--
+
+.small[
+* **Cap usage with a quota.** **APIs &amp; Services** -&gt; **Quotas**: limit Places API to a few hundred requests/day. Hitting it stops the API responding.
+* **Set a budget alert too** -- but an alert only emails you. It does **not** stop spending.
+]
+--
+
+.small[
+* **If a key is ever committed, rotate it.** Deleting the commit does *not* un-leak it, because bots scrape public repos within minutes. Issue a new key and delete the old one.
+]
+
+--
+
+.content-box-red[
+.footnotesize[
+`Sys.getenv("CENSUS_API_KEY")` returns an **empty string** `""` when the variable is not set. It does **not** throw an error.
+
+A missing key therefore looks exactly like a working key, right up until the request fails. Always check it first.
+]
+]
+
+---
+## Storing your keys in `.Renviron`
+
+.small[
+`.Renviron` is a plain text file that R reads at startup. Same method on Windows, macOS, and Linux.
+
+* Open `.Renviron` file in RStudio
+
+```r
+usethis::edit_r_environ()   # opens the right file, and creates it if needed
+```
+
+* Add one line per key, then **save the file**:
+
+`CENSUS_API_KEY=your_census_key_here`&lt;br&gt;`GOOGLE_API_KEY=your_google_key_here`
+
+* Restart R (or run `readRenviron("~/.Renviron")`), then confirm:
+
+
+```r
+Sys.getenv("CENSUS_API_KEY")
+```
+]
+
+--
+
+.small[
+.content-box-yellow[
+**Why `usethis::edit_r_environ()` instead of just opening `~/.Renviron`?**
+
+On Windows, R's `~` is often your **Documents** folder, not `C:\Users\your_name`. `edit_r_environ()` opens whichever file *your* R session will actually read.
+]
+]
+
+
+---
+## Fallback: OS-level variables (Windows)
+
+.footnotesize[
+1. Press the Windows key and search *'edit the system environment variables'*
+2. Click **Environment Variables**, then **New...**
+3. Restart RStudio and confirm with `Sys.getenv('CENSUS_API_KEY')`
+]
+
+.center[
+&lt;img src="img/env_var_windows.png" width="50%" /&gt;
+]
+
+---
+## Fallback: OS-level variables (macOS)
+
+.footnotesize[
+**Option 1: shell profile**
+
+`nano ~/.zshrc` (or `~/.bash_profile`), then add
+
+`export CENSUS_API_KEY="value"`
+
+*Works in terminal apps such as VS Code, but **not** in GUI RStudio.*
+
+**Option 2: launchctl**
+
+`launchctl setenv CENSUS_API_KEY "value"`
+
+*Works in both, but does **not** survive a reboot.*
+
+**Option 3: LaunchAgent**
+
+A `.plist` in `~/Library/LaunchAgents/` that runs `launchctl setenv` at every login.
+
+*Works everywhere and survives reboot -- but it is an XML file you have to write and load.*
+]
+
+.content-box-yellow[
+These caveats are exactly why `.Renviron` is the recommended route.
+]
+
+---
+## Let's get API keys
+
+1. Get Census API key ([link](https://api.census.gov/data/key_signup.html))
+2. Get Google API key ([instructions](https://ujhwang.github.io/urban-analytics-2026/Lab/module_1/week1/setting_up_google_api_key.html))
+3. Add both keys to your `.Renviron` using `usethis::edit_r_environ()`
+
+* Restart R, then test both in your RStudio session:
+  * `Sys.getenv("CENSUS_API_KEY")`
+  * `Sys.getenv("GOOGLE_API_KEY")`
+* If both print your keys rather than `""`, you are good to go.
+
+---
+## Test your Google API key
+
+Run the following code to confirm that your Google API key is working
+
+.footnotesize[
+
+```r
+library(httr)
+library(jsonlite)
+
+google_api_key &lt;- Sys.getenv("GOOGLE_API_KEY")
+lat &lt;- 33.777435
+lng &lt;- -84.397472
+radius &lt;- 500
+
+url &lt;- paste0("https://places.googleapis.com/v1/places:searchNearby")
+
+body &lt;- list(
+  includedTypes = list("restaurant", "cafe"),
+  maxResultCount = 20,
+  locationRestriction = list(
+    circle = list(
+      center = list(latitude = lat, longitude = lng),
+      radius = radius
+    )
+  )
+)
+
+res &lt;- POST(
+  url,
+  add_headers(
+    "Content-Type" = "application/json",
+    "X-Goog-Api-Key" = google_api_key,
+    "X-Goog-FieldMask" = "places.displayName,places.formattedAddress,places.types"),
+  body = body,
+  encode = "json"
+)
+
+# 200 means it worked. 403 means the key is missing or the API is not enabled.
+status_code(res)
+content &lt;- content(res, "text")
+data &lt;- fromJSON(content)
+```
+]
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "highlightStyle": "github",
+  "highlightLines": true,
+  "countIncrementalSlides": false,
+  "ratio": "4:3"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
