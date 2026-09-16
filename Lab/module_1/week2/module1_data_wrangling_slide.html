@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Data Wrangling</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Originally written by Bon Woo Koo &amp; Subhro Guhathakurta; modified by Uijeong Hwang" />
+    <script src="libs/header-attrs-2.28/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <script src="libs/kePrint-0.0.1/kePrint.js"></script>
+    <link href="libs/lightable-0.0.1/lightable.css" rel="stylesheet" />
+    <link href="libs/htmltools-fill-0.5.8.1/fill.css" rel="stylesheet" />
+    <script src="libs/htmlwidgets-1.6.4/htmlwidgets.js"></script>
+    <script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+    <link href="libs/leaflet-1.3.1/leaflet.css" rel="stylesheet" />
+    <script src="libs/leaflet-1.3.1/leaflet.js"></script>
+    <link href="libs/leafletfix-1.0.0/leafletfix.css" rel="stylesheet" />
+    <script src="libs/proj4-2.6.2/proj4.min.js"></script>
+    <script src="libs/Proj4Leaflet-1.0.1/proj4leaflet.js"></script>
+    <link href="libs/rstudio_leaflet-1.3.1/rstudio_leaflet.css" rel="stylesheet" />
+    <script src="libs/leaflet-binding-2.2.3/leaflet.js"></script>
+    <script src="libs/leaflet-providers-2.0.0/leaflet-providers_2.0.0.js"></script>
+    <script src="libs/leaflet-providers-plugin-2.2.3/leaflet-providers-plugin.js"></script>
+    <link rel="stylesheet" href="assets/sydney-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="assets/sydney.css" type="text/css" />
+    <link rel="stylesheet" href="assets/inline-code.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+
+
+class: middle, inverse
+
+# Data Wrangling
+
+.font100[
+Uijeong "UJ" Hwang
+
+9/16/2026
+]
+---
+# Data are messy
+
+[![](img/messy_data_quote.png)](https://r4ds.hadley.nz/data-tidy.html)
+
+--
+.small[
+Raw data comes with many challenges:
+&lt;ol&gt;
+&lt;li&gt; Rows and columns not corresponding to observations and variables
+&lt;li&gt; Duplicated rows
+&lt;li&gt; Multiple variables stored in a single column
+&lt;li&gt; Semi-structured data
+&lt;li&gt; Missing values
+&lt;/ol&gt;
+]
+
+--
+
+#### Raw data must be transformed into a clean, consistent, and usable format for analysis and decision-making
+
+---
+## Issue 1 - Rows and columns not corresponding to observations and variables
+
+.center[
+Three interrelated rules which make a dataset tidy:
+
+“Each variable must have its own column.”
+
+“Each observation must have its own row.”
+
+“Each value must have its own cell.”
+
+(from [Chapter 12.2 in R for Data Science](https://r4ds.hadley.nz/data-tidy.html))
+]
+
+![](img/tidy_dataset.png)
+
+
+---
+## Wide vs. Long forms
+* **Wide**: each row represents a unique entity, and repeated measures or different variables are spread across columns.
+* **Long**: each row represents a single observation, and each variable is in its own column.
+
+
+```r
+census_wide &lt;- get_acs(geography = "tract",
+                       state = "GA",
+                       county = "Fulton",
+                       variables = c(hhincome = 'B19013_001', pop = "B01003_001"),
+                       year = 2024,
+*                      output = "wide")
+```
+
+---
+## Wide vs. Long forms
+
+
+.small[
+.pull-left[
+
+with `output="wide"`:
+
+
+```r
+census_wide %&gt;%
+  head() %&gt;%
+  nice_table("350px")
+```
+
+&lt;div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:350px; overflow-x: scroll; width:100%; "&gt;&lt;table class="table" style="font-size: 12px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; GEOID &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; NAME &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; hhincomeE &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; hhincomeM &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; popE &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; popM &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000100 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 1; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 115352 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 65866 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5675 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1004 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000201 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 2.01; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 142700 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 43420 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2184 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 326 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000202 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 2.02; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 181061 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 86630 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3932 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 865 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000400 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 4; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 150481 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 34774 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1922 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 262 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000501 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 5.01; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 113030 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 25259 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5401 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 687 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000502 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 5.02; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 177069 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 105956 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2410 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 320 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;&lt;/div&gt;
+]
+
+.pull-right[
+with `output="long"`:
+
+
+```r
+census_long %&gt;%
+  head() %&gt;%
+  nice_table("350px")
+```
+
+&lt;div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:350px; overflow-x: scroll; width:100%; "&gt;&lt;table class="table" style="font-size: 12px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; GEOID &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; NAME &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; variable &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; estimate &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; moe &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000100 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 1; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; pop &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5675 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1004 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000100 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 1; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; hhincome &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 115352 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 65866 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000201 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 2.01; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; pop &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2184 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 326 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000201 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 2.01; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; hhincome &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 142700 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 43420 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000202 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 2.02; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; pop &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3932 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 865 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; 13121000202 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Census Tract 2.02; Fulton County; Georgia &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; hhincome &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 181061 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 86630 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;&lt;/div&gt;
+]
+]
+---
+## Wide format is useful when
+* Cross-sectional data
+* Comparison between multiple variables
+* Data export and reporting
+
+| student | math_score | science_score |
+|---------|------------|---------------|
+|   A     |   100      |  90           |
+|   B     |   85       |  80           |
+|   C     |   90       |  85           |
+|   D     |   98       |  95           |
+|   E     |   50       |  60           |
+|   F     |   70       |  40           |
+
+
+---
+## Long format is useful when
+* Time series data
+* Repeated measures of experiments
+* Grouped data
+
+| store |   month    |   sales |
+|-------|------------|---------|
+| A     |   Jan      |  500    |
+| A     |   Feb      |  300    |
+| A     |   Mar      |  500    |
+| B     |   Feb      |  200    |
+| B     |   Jan      |  450    |
+| B     |   Mar      |  600    |
+
+---
+## Wide -&gt; Long
+
+.small[
+
+```r
+longer &lt;- census_wide %&gt;%
+  pivot_longer(cols = hhincomeE:popM, # Cols to be affected
+               names_to = c("variable"), # Name for the label column
+               values_to = c("value")) # Name for the value column
+print(longer)
+```
+
+```
+## # A tibble: 1,308 × 4
+##    GEOID       NAME                                      variable   value
+##    &lt;chr&gt;       &lt;chr&gt;                                     &lt;chr&gt;      &lt;dbl&gt;
+##  1 13121000100 Census Tract 1; Fulton County; Georgia    hhincomeE 115352
+##  2 13121000100 Census Tract 1; Fulton County; Georgia    hhincomeM  65866
+##  3 13121000100 Census Tract 1; Fulton County; Georgia    popE        5675
+##  4 13121000100 Census Tract 1; Fulton County; Georgia    popM        1004
+##  5 13121000201 Census Tract 2.01; Fulton County; Georgia hhincomeE 142700
+##  6 13121000201 Census Tract 2.01; Fulton County; Georgia hhincomeM  43420
+##  7 13121000201 Census Tract 2.01; Fulton County; Georgia popE        2184
+##  8 13121000201 Census Tract 2.01; Fulton County; Georgia popM         326
+##  9 13121000202 Census Tract 2.02; Fulton County; Georgia hhincomeE 181061
+## 10 13121000202 Census Tract 2.02; Fulton County; Georgia hhincomeM  86630
+## # ℹ 1,298 more rows
+```
+]
+
+---
+## Long -&gt; Wide
+
+.small[
+
+```r
+wider &lt;- longer %&gt;%
+  pivot_wider(id_cols = c(GEOID, NAME),
+              names_from = c("variable"),
+              values_from = c("value"))
+print(wider)
+```
+
+```
+## # A tibble: 327 × 6
+##    GEOID       NAME                              hhincomeE hhincomeM  popE  popM
+##    &lt;chr&gt;       &lt;chr&gt;                                 &lt;dbl&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+##  1 13121000100 Census Tract 1; Fulton County; G…    115352     65866  5675  1004
+##  2 13121000201 Census Tract 2.01; Fulton County…    142700     43420  2184   326
+##  3 13121000202 Census Tract 2.02; Fulton County…    181061     86630  3932   865
+##  4 13121000400 Census Tract 4; Fulton County; G…    150481     34774  1922   262
+##  5 13121000501 Census Tract 5.01; Fulton County…    113030     25259  5401   687
+##  6 13121000502 Census Tract 5.02; Fulton County…    177069    105956  2410   320
+##  7 13121000601 Census Tract 6.01; Fulton County…     82350     25502  4984   598
+##  8 13121000602 Census Tract 6.02; Fulton County…     75179     13393  2551   490
+##  9 13121000700 Census Tract 7; Fulton County; G…    164028     38514  3038   313
+## 10 13121001001 Census Tract 10.01; Fulton Count…    101094     13453  5617   681
+## # ℹ 317 more rows
+```
+]
+
+---
+## Issue 2 - Duplicated rows
+
+* Common functions to handle duplicates include:
+  * `duplicated()`: returns a logical vector indicating which rows are duplicates (i.e., TRUE for duplicates after the first occurrence).
+  * `distinct()`: returns a data frame with duplicate rows removed automatically.
+
+
+```r
+df &lt;- data.frame(name = c("A", "A", "B", "C", "C", "C", "D"),
+                 GPA = c(3.5, 3.5, 4.0, 2.0, 3.0, 3.0, 2.0))
+duplicated(df$name)
+```
+
+```
+## [1] FALSE  TRUE FALSE FALSE  TRUE  TRUE FALSE
+```
+
+---
+## !duplicated()
+
+
+```r
+# Duplicates in the column "name" are removed.
+df[!duplicated(df$name),]
+```
+
+```
+##   name GPA
+## 1    A 3.5
+## 3    B 4.0
+## 4    C 2.0
+## 7    D 2.0
+```
+
+
+```r
+df[!duplicated(df),]
+```
+
+```
+##   name GPA
+## 1    A 3.5
+## 3    B 4.0
+## 4    C 2.0
+## 5    C 3.0
+## 7    D 2.0
+```
+
+
+---
+## dplyr::distinct()
+
+.small[
+Both calls below return a **data frame**. What changes is *which columns survive* and
+*what counts as a duplicate*.
+
+
+```r
+# Unique values of `name`. Every column you don't name is dropped.
+df %&gt;% distinct(name)
+```
+
+```
+##   name
+## 1    A
+## 2    B
+## 3    C
+## 4    D
+```
+
+
+```r
+# Unique combinations of `name` AND `GPA`, so C/2.0 and C/3.0 both survive.
+df %&gt;% distinct(name, GPA)
+```
+
+```
+##   name GPA
+## 1    A 3.5
+## 2    B 4.0
+## 3    C 2.0
+## 4    C 3.0
+## 5    D 2.0
+```
+]
+
+---
+## distinct(.keep_all = TRUE)
+
+.small[
+Usually you want unique rows *by* one column but you still need the other columns.
+`.keep_all = TRUE` keeps them, filling from the **first** row of each group.
+
+
+```r
+df %&gt;% distinct(name, .keep_all = TRUE)
+```
+
+```
+##   name GPA
+## 1    A 3.5
+## 2    B 4.0
+## 3    C 2.0
+## 4    D 2.0
+```
+]
+
+--
+
+.content-box-yellow[
+.footnotesize[
+"First row wins" is a real decision, not a technicality. If the duplicate rows disagree
+with each other, you are silently choosing whichever one the sort order happened to put first.
+]
+]
+
+---
+## Issue 3 - Multiple variables stored in a single column
+
+* Example from Census data: you might see something like **Census Tract 9501, Appling County, Georgia** stored in a single column.
+* This actually contains three separate pieces of information: Tract, County, and State.
+* We can split the string using `separate()` from the `tidyr` package or `str_split_fixed()` from the `stringr` package.
+
+---
+## tidyr::separate()
+
+
+```r
+# A character vector to split
+df &lt;- data.frame(labels = c('a_1_3','b_2_7','c_3','d4'))
+
+# split the character at _
+df_separate &lt;- df %&gt;%
+  separate(col = "labels",
+           sep = "_",
+           into = c("alphabet", "number1", "number2"))
+```
+
+```
+## Warning: Expected 3 pieces. Missing pieces filled with `NA` in 2 rows [3, 4].
+```
+
+```r
+print(df_separate)
+```
+
+```
+##   alphabet number1 number2
+## 1        a       1       3
+## 2        b       2       7
+## 3        c       3    &lt;NA&gt;
+## 4       d4    &lt;NA&gt;    &lt;NA&gt;
+```
+
+.footnotesize[
+Rows 3 and 4 don't have three pieces, so `separate()` fills with `NA` **and warns**.
+]
+
+---
+## tidyr::separate_wider_delim()
+
+.small[
+`separate()` still works, but as of tidyr 1.3 it is **superseded** by a family of clearer
+functions. `separate_wider_delim()` is the direct replacement, and it makes you say out loud
+what should happen to the ragged rows.
+
+
+```r
+df_wider &lt;- df %&gt;%
+  separate_wider_delim(cols = labels,
+                       delim = "_",
+                       names = c("alphabet", "number1", "number2"),
+*                      too_few = "align_start")
+
+print(df_wider)
+```
+
+```
+## # A tibble: 4 × 3
+##   alphabet number1 number2
+##   &lt;chr&gt;    &lt;chr&gt;   &lt;chr&gt;  
+## 1 a        1       3      
+## 2 b        2       7      
+## 3 c        3       &lt;NA&gt;   
+## 4 d4       &lt;NA&gt;    &lt;NA&gt;
+```
+]
+
+.footnotesize[
+`too_few = "align_start"` says "pad the short rows with `NA`" -- the same result as `separate()`,
+but requested on purpose instead of arriving as a warning. Use `too_many = "merge"` for the
+opposite problem.
+]
+
+---
+## stringr::str_split_fixed()
+
+
+```r
+df_split &lt;- str_split_fixed(df$labels,
+                            pattern = "_",
+                            n = 3)
+
+print(df_split)
+```
+
+```
+##      [,1] [,2] [,3]
+## [1,] "a"  "1"  "3" 
+## [2,] "b"  "2"  "7" 
+## [3,] "c"  "3"  ""  
+## [4,] "d4" ""   ""
+```
+
+.footnotesize[
+Note this returns a **matrix**, not a data frame.
+]
+
+
+---
+## Issue 4 - Semi-structured data
+### A single value in a data frame contains another data frame or list
+
+.small[
+.pull-left[
+* This situation often occurs when converting JSON with a nested structure into a data frame.
+* In such cases, you need to simplify the data using `jsonlite::flatten()` or `tidyr::unnest_wider()` to simplify nested data frames into a single flat data frame.
+* Even after flattening/unnesting, some list-columns may remain, which need to be handled manually.
+]
+
+.pull-right[
+![](img/json_example.png)
+]
+]
+
+---
+## jsonlite::flatten()
+.small[
+* `jsonlite::fromJSON(flatten = T)` is the same as `jsonlite::fromJSON() %&gt;% jsonlite::flatten()`
+
+#### Without flattening
+
+```r
+not_flat &lt;- jsonlite::fromJSON("json_example.json",
+*                              flatten = F)
+print(paste0("Number of columns: ", ncol(not_flat)))
+```
+
+```
+## [1] "Number of columns: 5"
+```
+
+
+```r
+not_flat %&gt;% sapply(class)
+```
+
+```
+##     order_id         date     customer     products total_amount 
+##    "integer"  "character" "data.frame"       "list"    "integer"
+```
+
+
+```r
+not_flat[1, "customer"] %&gt;% kable()
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; customer_id &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; name &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; email &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 101 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Alice Johnson &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; alice.johnson@example.com &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+]
+
+---
+## jsonlite::flatten()
+.small[
+* `jsonlite::fromJSON(flatten = T)` is the same as `jsonlite::fromJSON() %&gt;% jsonlite::flatten()`
+
+#### With flattening
+
+```r
+flat &lt;- jsonlite::fromJSON("json_example.json",
+*                          flatten = T)
+print(paste0("Number of columns: ", ncol(flat)))
+```
+
+```
+## [1] "Number of columns: 7"
+```
+
+
+```r
+flat %&gt;% sapply(class)
+```
+
+```
+##             order_id                 date             products 
+##            "integer"          "character"               "list" 
+##         total_amount customer.customer_id        customer.name 
+##            "integer"            "integer"          "character" 
+##       customer.email 
+##          "character"
+```
+]
+
+---
+## tidyr::unnest_wider()
+
+
+```r
+unnested &lt;- jsonlite::fromJSON("json_example.json", flatten = F) %&gt;%
+* tidyr::unnest_wider(c(customer, products), names_sep = "_")
+
+print(paste0("Number of columns: ", ncol(unnested)))
+```
+
+```
+## [1] "Number of columns: 10"
+```
+
+
+```r
+unnested %&gt;% nice_table("100px")
+```
+
+&lt;div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:100px; overflow-x: scroll; width:100%; "&gt;&lt;table class="table" style="font-size: 12px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; order_id &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; date &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; customer_customer_id &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; customer_name &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; customer_email &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_product_id &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_name &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_category &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_price &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; total_amount &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2024-09-10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 101 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Alice Johnson &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; alice.johnson@example.com &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 1001, 1002 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Laptop, Mouse &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Electronics, Electronics &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 1200, 25 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1225 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;&lt;/div&gt;
+
+
+```r
+unnested$products_product_id[1]
+```
+
+```
+## &lt;list_of&lt;integer&gt;[1]&gt;
+## [[1]]
+## [1] 1001 1002
+```
+
+
+---
+## Why are some columns *still* lists?
+
+.small[
+`customer` expanded cleanly. `products` did not -- `products_product_id` is still a list-column.
+
+
+```r
+unnested$products_category
+```
+
+```
+## &lt;list_of&lt;character&gt;[1]&gt;
+## [[1]]
+## [1] "Electronics" "Electronics"
+```
+
+.content-box-red[
+One order contains **several** products. There is no way to put two product names into one cell of
+one row without either inventing columns (`product_1`, `product_2`, ...) or inventing rows.
+]
+
+This is the **one-to-many** problem, and it is everywhere in API data:
+one POI has many reviews, one bus route has many stops, one parcel has many owners.
+]
+
+---
+## Four ways to proceed
+
+.small[
+There is no single correct answer. Pick based on what the analysis needs.
+
+1. **Keep** the list-column -- fine if you never need to look inside it.
+
+2. **Collapse** it into one value per row (e.g. `"food, cafe, store"`).
+  * Keeps one row per observation. Loses the ability to filter on individual elements.
+
+3. **Relational structure** -- move the nested part into its own table, linked by an ID.
+  * The main table stays one row per observation. Nothing is lost. Costs you a `join` later.
+
+4. **Go long** -- one row per element.
+  * Nothing is lost, but the main table is no longer one row per observation.
+]
+
+--
+
+.content-box-green[
+.footnotesize[
+Options 2 and 4 both need a way to *apply a function to every element of a list*. That is what the
+`map` family is for -- so let's cover that first.
+]
+]
+
+---
+## map functions
+* `map` functions apply a function to each element of a list, vector, or data frame and return an object of the same length.
+
+.pull-left[
+#### `map` family and output type
+* `map()`: list
+* `map_lgl()`: logical vector
+* `map_int()`: integer vector
+* `map_dbl()`: numeric vector
+* `map_chr()`: character vector
+]
+
+.pull-right[
+#### Why use `map` family?
+* Works seamlessly with `tidyverse`
+* Flexible and extensible
+  * `map` family works consistently with lists, vectors, and data frames, whereas the `apply` family requires choosing a specific function depending on the input type.
+]
+
+---
+## Anonymous function
+
+.small[
+* When using **apply()** or **map()**, you can provide a custom function.
+* Similar to lambda in Python, R has **anonymous function**, which is **a function defined on the fly and disappears after execution.**
+
+
+```r
+map_dbl(1:5, # input vector
+        function(x) x + 1) # anonymous function
+```
+
+```
+## [1] 2 3 4 5 6
+```
+
+
+```r
+map_dbl(1:5, # input vector
+        function(x){ # anonymous function with {}
+          out &lt;- (x + 1)*x
+          return(out)
+        })
+```
+
+```
+## [1]  2  6 12 20 30
+```
+]
+
+---
+## Anonymous function: two shorthands
+
+.small[
+Writing `function(x)` every time gets noisy. There are two shorter ways to say the same thing.
+
+**`purrr`'s tilde**: `~` replaces `function()`, and the argument is `.x`.
+
+
+```r
+map_dbl(1:5,
+*       ~(.x + 1))
+```
+
+```
+## [1] 2 3 4 5 6
+```
+
+**Native lambda** (base R, 4.1+): `\(x)` is literally shorthand for `function(x)`.
+
+
+```r
+map_dbl(1:5,
+*       \(x) x + 1)
+```
+
+```
+## [1] 2 3 4 5 6
+```
+]
+
+--
+
+.content-box-yellow[
+.footnotesize[
+All three forms -- `function(x)`, `~ .x`, and `\(x)` -- do the same thing here. You will see the
+tilde in older tidyverse code and in this course's lab materials; `\(x)` is the newer style and
+works outside the tidyverse too.
+]
+]
+
+---
+## Option 2 -- Collapse the list-column
+
+.small[
+Use `map_chr()` to walk the list-column and `str_c(collapse = )` to glue each element into one string.
+
+
+```r
+collapsed &lt;- unnested %&gt;%
+  mutate(products_category = products_category %&gt;%
+*          map_chr(~ str_c(.x, collapse = ", ")))
+
+collapsed$products_category
+```
+
+```
+## [1] "Electronics, Electronics"
+```
+
+Compare to before:
+
+```r
+unnested$products_category
+```
+
+```
+## &lt;list_of&lt;character&gt;[1]&gt;
+## [[1]]
+## [1] "Electronics" "Electronics"
+```
+
+--
+
+.content-box-yellow[
+.footnotesize[
+The column is now a plain character vector, so it prints, exports, and maps normally --
+but `"Electronics, Electronics"` is a *string*, not two values. To ask "is this order electronics?"
+you now need `str_detect()` rather than `==`.
+]
+]
+]
+
+---
+## Option 3 -- Relational structure
+
+.small[
+Keep one row per observation in the main table, and move the nested part into its own table
+linked by an ID. This is what we do with `places.reviews` in the lab.
+
+
+```r
+# Side table: one row per review, linked back by places.id
+reviews &lt;- poi %&gt;%
+  select(places.id, places.reviews) %&gt;%
+  unnest_longer(places.reviews) %&gt;%
+  unnest_wider(places.reviews)
+
+# Main table: one row per POI, nested column removed
+poi_main &lt;- poi %&gt;% select(-places.reviews)
+```
+
+.content-box-green[
+Nothing is duplicated and nothing is lost. `poi_main` still answers "how many POIs?" correctly,
+and `reviews` still answers "what did people say?" -- you just have to `join` them when a question
+needs both.
+]
+]
+
+---
+## Joining tables back together
+
+.small[
+.pull-left[
+
+```r
+poi &lt;- tibble(
+  id = c("p1","p2","p3"),
+  name = c("Cafe A","Bar B","Deli C"))
+
+reviews &lt;- tibble(
+  id = c("p1","p1","p3"),
+  rating = c(5, 4, 3))
+```
+
+* `left_join()`: keep every row of the left table
+* `inner_join()`: keep only rows present in both
+]
+
+.pull-right[
+
+```r
+poi %&gt;% left_join(reviews, by = "id")
+```
+
+```
+## # A tibble: 4 × 3
+##   id    name   rating
+##   &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;
+## 1 p1    Cafe A      5
+## 2 p1    Cafe A      4
+## 3 p2    Bar B      NA
+## 4 p3    Deli C      3
+```
+
+
+```r
+poi %&gt;% inner_join(reviews, by = "id")
+```
+
+```
+## # A tibble: 3 × 3
+##   id    name   rating
+##   &lt;chr&gt; &lt;chr&gt;   &lt;dbl&gt;
+## 1 p1    Cafe A      5
+## 2 p1    Cafe A      4
+## 3 p3    Deli C      3
+```
+]
+]
+
+--
+
+.content-box-red[
+.footnotesize[
+`p1` has two reviews, so it becomes **two rows**. A join does not preserve your row count --
+always check `nrow()` before and after.
+]
+]
+
+---
+## Option 4 -- Go long
+
+.small[
+`unnest_longer()` handles the **rows**; `unnest_wider()` handles the **columns**. You usually need both.
+
+
+```r
+long_form &lt;- not_flat %&gt;%
+* unnest_longer(c(customer, products)) %&gt;%   # one row per product
+* unnest_wider(c(customer, products), names_sep = "_") # expand into columns
+
+long_form %&gt;% nice_table("150px")
+```
+
+&lt;div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:150px; overflow-x: scroll; width:100%; "&gt;&lt;table class="table" style="font-size: 12px; margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; order_id &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; date &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; customer_customer_id &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; customer_name &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; customer_email &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_product_id &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_name &lt;/th&gt;
+   &lt;th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_category &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; products_price &lt;/th&gt;
+   &lt;th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;"&gt; total_amount &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2024-09-10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 101 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Alice Johnson &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; alice.johnson@example.com &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1001 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Laptop &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Electronics &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1200 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1225 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2024-09-10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 101 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Alice Johnson &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; alice.johnson@example.com &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1002 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Mouse &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Electronics &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 25 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1225 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;&lt;/div&gt;
+
+.footnotesize[
+The order-level columns (`order_id`, `total_amount`) are now **repeated** on every product row.
+Summing `total_amount` on this table would double-count. That is the price of going long.
+]
+]
+
+---
+## Issue 5 - Missing values
+* In R, `NA` represents missing value
+* Many core functions in R do not work properly when NA values are present in a vector, so these need to be handled appropriately.
+
+
+```r
+mean(c(NA, 10, 25, 3))
+```
+
+```
+## [1] NA
+```
+
+
+
+```r
+mean(c(NA, 10, 25, 3), na.rm = T)
+```
+
+```
+## [1] 12.66667
+```
+
+---
+## How to deal with missing values
+
+* Deletion – remove missing values
+  * Listwise
+  * Pairwise
+  * Dropping a variable
+
+* Imputation/interpolation - fill in missing values using estimates
+
+---
+## Listwise deletion
+
+* Remove all data for a case that has one or more missing values.
+&lt;table class="table" style="margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; student &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; math_score &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; science_score &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; english_score &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; A &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 100 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 75 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; B &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 100 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;background-color: yellow !important;"&gt; C &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; NA &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; NA &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; D &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 98 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 95 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; E &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 100 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; F &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 65 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+## Pairwise deletion
+* Use all available data for each calculation, ignoring only the missing pairs.
+&lt;table class="table" style="margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; student &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; math_score &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; science_score &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; english_score &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; A &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 100 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 75 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; B &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 100 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; C &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; &lt;span style="     border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: yellow !important;"&gt;NA&lt;/span&gt; &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; D &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; &lt;span style="     border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: yellow !important;"&gt;NA&lt;/span&gt; &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 95 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 40 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; E &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 100 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; F &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; &lt;span style="     border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: yellow !important;"&gt;NA&lt;/span&gt; &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 40 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+## Dropping a variable
+
+* Remove the whole column if it has too many missing values.
+&lt;table class="table" style="margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; student &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; math_score &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; science_score &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; english_score &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; A &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 100 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 75 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; B &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 100 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; C &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; NA &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; D &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 98 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 95 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; NA &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; E &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; NA &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; F &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 65 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 40 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+## Imputation/interpolation
+.small[
+* Imputation
+  * **No specific assumptions about data continuity**
+  * Mean, median, mode, or other statistical methods like KNN
+
+* Interpolation
+  * **Assumes continuity (spatial or temporal) and a smooth transition between known data points**
+  * Time-series interpolation: linear, polynomial
+  * Spatial interpolation: inverse distance weighting, kriging
+
+&lt;table class="table" style="margin-left: auto; margin-right: auto;"&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; student &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; math_score &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; science_score &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; english_score &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; A &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 100 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 75 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; B &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 85 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 100 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; C &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; NA &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; D &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 98 &lt;/td&gt;
+   &lt;td style="text-align:right;background-color: yellow !important;"&gt; 95 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+]
+---
+## Listwise deletion: is.na()
+
+* `is.na()` is a base R function that returns a logical vector indicating which values are missing.
+
+```r
+toy_df &lt;- data.frame(name = c("John", "Jane", "Mary", "Bob"),
+                     treatment_a = c(NA, 16, 3, 5),
+                     treatment_b = c(2, 11, 1, NA),
+                     treatment_c = c(6, 12, NA, 2))
+
+# Dropping NA using is.na()
+toy_df %&gt;% filter(!is.na(treatment_a))
+```
+
+```
+##   name treatment_a treatment_b treatment_c
+## 1 Jane          16          11          12
+## 2 Mary           3           1          NA
+## 3  Bob           5          NA           2
+```
+
+---
+## Listwise deletion: tidyr::drop_na()
+
+* drop_na() is part of the `tidyr` package that drops rows with NAs in the specified column(s)
+
+```r
+toy_df %&gt;% drop_na(treatment_a, treatment_b)
+```
+
+```
+##   name treatment_a treatment_b treatment_c
+## 1 Jane          16          11          12
+## 2 Mary           3           1          NA
+```
+
+
+```r
+# This checks across all columns and drops all rows that have at least one NA.
+toy_df %&gt;% drop_na()
+```
+
+```
+##   name treatment_a treatment_b treatment_c
+## 1 Jane          16          11          12
+```
+
+---
+## Filling missing values instead of dropping
+
+.footnotesize[
+Deletion is not the only option. Two functions cover most simple cases.
+
+.pull-left[
+`replace_na()` -- substitute a constant.
+
+
+```r
+toy_df %&gt;%
+  mutate(treatment_a =
+*          replace_na(treatment_a, 0))
+```
+
+```
+##   name treatment_a treatment_b treatment_c
+## 1 John           0           2           6
+## 2 Jane          16          11          12
+## 3 Mary           3           1          NA
+## 4  Bob           5          NA           2
+```
+]
+
+.pull-right[
+`coalesce()` -- take the first non-`NA` across columns.
+
+
+```r
+toy_df %&gt;%
+  mutate(best =
+*          coalesce(treatment_a,
+*                   treatment_b))
+```
+
+```
+##   name treatment_a treatment_b treatment_c best
+## 1 John          NA           2           6    2
+## 2 Jane          16          11          12   16
+## 3 Mary           3           1          NA    3
+## 4  Bob           5          NA           2    5
+```
+]
+]
+
+--
+
+.content-box-red[
+.footnotesize[
+Replacing `NA` with `0` is an **assumption**, not a cleanup step. "We don't know the price level"
+and "the price level is zero" are different claims, and every mean you compute afterwards will
+believe the second one.
+]
+]
+
+---
+## Converting a data frame into an sf object
+* You can convert a data frame with lon/lat into a sf object using **st_as_sf()**.
+
+.pull-left[
+
+```r
+# A data frame with XY info
+point_df &lt;- data.frame(
+  x = c(-84.3991, -84.4010, -84.3899),
+  y = c(33.7770, 33.7748, 33.7777))
+
+# st_as_sf
+point_sf &lt;- point_df %&gt;%
+  st_as_sf(coords = c("x", "y"),
+           crs = 4326)
+
+tm_shape(point_sf) + tm_dots()
+```
+]
+
+.pull-right[
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-a7bacd003b740dedcf23" style="width:100%;height:504px;"></div>
+<script type="application/json" data-for="htmlwidget-a7bacd003b740dedcf23">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"attributionControl":true},"calls":[{"method":"createMapPane","args":["tmap401",401]},{"method":"addLayersControl","args":[["Esri.WorldGrayCanvas","OpenStreetMap","Esri.WorldTopoMap"],"point_sf",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addProviderTiles","args":["Esri.WorldGrayCanvas",null,"Esri.WorldGrayCanvas",{"minZoom":0,"maxZoom":18,"maxNativeZoom":17,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["OpenStreetMap",null,"OpenStreetMap",{"minZoom":0,"maxZoom":18,"maxNativeZoom":17,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldTopoMap",null,"Esri.WorldTopoMap",{"minZoom":0,"maxZoom":18,"maxNativeZoom":17,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"pane":"tilePane"}]},{"method":"addCircleMarkers","args":[[33.777,33.7748,33.7777],[-84.3991,-84.401,-84.3899],[2.1,2.1,2.1],["0000001","0000002","0000003"],"point_sf",{"interactive":false,"className":"","pane":"tmap401","stroke":true,"color":["#404040","#404040","#404040"],"weight":[0,0,0],"opacity":[1,1,1],"fill":true,"fillColor":["#000000","#000000","#000000"],"fillOpacity":[1,1,1]},null,null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]}],"fitBounds":[33.774742,-84.40122199999999,33.77775800000001,-84.389678,[]],"limits":{"lat":[33.7748,33.7777],"lng":[-84.401,-84.3899]}},"evals":[],"jsHooks":[]}</script>
+]
+
+
+---
+## Detecting strings - str_detect/grepl
+
+.small[
+You asked the Places API for **two** `includedTypes`, so both are mixed into one dataset. And after
+collapsing `places.types` (Option 2), each POI's types are a single comma-separated string like
+`"cafe, food, point_of_interest"`. To count how many of each you got, you have to search inside strings.
+
+grepl(.red[pattern], .blue[string])
+
+```r
+a &lt;- c("cafe, food, store", "bar, food", "Cafe, bakery")
+grepl("cafe", a)
+```
+
+```
+## [1]  TRUE FALSE FALSE
+```
+
+str_detect(.blue[string], .red[pattern])
+
+```r
+str_detect(a, "cafe")
+```
+
+```
+## [1]  TRUE FALSE FALSE
+```
+]
+
+--
+
+.content-box-red[
+.footnotesize[
+Both are **case-sensitive** -- `"Cafe, bakery"` came back `FALSE`. Use
+`str_detect(a, regex("cafe", ignore_case = TRUE))` or lowercase the column first with `str_to_lower()`.
+]
+]
+
+---
+## Counting and summarizing
+
+.small[
+.pull-left[
+`count()` is the fastest way to see what is in a column.
+
+
+```r
+d &lt;- tibble(
+  type = c("cafe","cafe","bar","deli","bar"),
+  rating = c(4.5, 4.0, 3.8, 4.9, 4.1))
+
+d %&gt;% count(type)
+```
+
+```
+## # A tibble: 3 × 2
+##   type      n
+##   &lt;chr&gt; &lt;int&gt;
+## 1 bar       2
+## 2 cafe      2
+## 3 deli      1
+```
+]
+
+.pull-right[
+`group_by()` + `summarise()` when you need more than a count.
+
+
+```r
+d %&gt;%
+* group_by(type) %&gt;%
+  summarise(n = n(),
+            mean_rating = mean(rating))
+```
+
+```
+## # A tibble: 3 × 3
+##   type      n mean_rating
+##   &lt;chr&gt; &lt;int&gt;       &lt;dbl&gt;
+## 1 bar       2        3.95
+## 2 cafe      2        4.25
+## 3 deli      1        4.9
+```
+]
+]
+
+--
+
+.content-box-yellow[
+.footnotesize[
+`count(type)` is just shorthand for `group_by(type) %&gt;% summarise(n = n())`.
+Add `na.rm = TRUE` inside `mean()` whenever the column might contain `NA`.
+]
+]
+
+---
+## case_when() and across()
+
+.small[
+.pull-left[
+`case_when()` -- re-code by condition. Each argument is `condition ~ output`.
+
+
+```r
+d %&gt;%
+* mutate(tier = case_when(
+    rating &gt;= 4.5 ~ "high",
+    rating &gt;= 4.0 ~ "mid",
+    .default = "low"))
+```
+
+```
+## # A tibble: 5 × 3
+##   type  rating tier 
+##   &lt;chr&gt;  &lt;dbl&gt; &lt;chr&gt;
+## 1 cafe     4.5 high 
+## 2 cafe     4   mid  
+## 3 bar      3.8 low  
+## 4 deli     4.9 high 
+## 5 bar      4.1 mid
+```
+]
+
+.pull-right[
+`across()` -- same operation, many columns.
+
+
+```r
+d %&gt;%
+* mutate(across(where(is.numeric),
+                ~ round(.x, 0)))
+```
+
+```
+## # A tibble: 5 × 2
+##   type  rating
+##   &lt;chr&gt;  &lt;dbl&gt;
+## 1 cafe       4
+## 2 cafe       4
+## 3 bar        4
+## 4 deli       5
+## 5 bar        4
+```
+]
+]
+
+--
+
+.content-box-yellow[
+.footnotesize[
+`case_when()` evaluates conditions **in order** and stops at the first match, so put the
+narrowest condition first. `.default` catches everything left over -- without it, unmatched rows become `NA`.
+]
+]
+
+---
+## Recap
+
+.small[
+| Issue | What it looks like | Tools |
+|---|---|---|
+| 1. Not tidy | variables spread across columns | `pivot_longer()`, `pivot_wider()` |
+| 2. Duplicates | the same POI collected twice | `duplicated()`, `distinct()` |
+| 3. Crammed columns | `"Tract 1, Fulton County, Georgia"` | `separate_wider_delim()`, `str_split_fixed()` |
+| 4. Semi-structured | list-columns from JSON | `flatten()`, `unnest_wider()`, `unnest_longer()`, `map_chr()` |
+| 5. Missing values | `NA` | `drop_na()`, `replace_na()`, `coalesce()` |
+]
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "highlightStyle": "github",
+  "highlightLines": true,
+  "countIncrementalSlides": false,
+  "ratio": "4:3"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+/* Give inline `code` a visible background. sydney.css sets this to
+   transparent as an old MathJax workaround; re-enabling it here. */
+.remark-inline-code {
+  background: #F1F1F1;
+  color: #b02a37;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+/* keep it flat inside the coloured callout boxes */
+.content-box-blue .remark-inline-code,
+.content-box-red .remark-inline-code,
+.content-box-green .remark-inline-code,
+.content-box-yellow .remark-inline-code {
+  background: rgba(0,0,0,0.06);
+  color: inherit;
+}
