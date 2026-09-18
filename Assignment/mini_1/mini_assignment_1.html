@@ -1694,15 +1694,17 @@ font-family: Arial;
 </style>
 <p>Mini assignments are designed to give you an opportunity to practice
 and better understand the class material through hands-on activities.
-<font style="color:#f57f7f;"> <strong>Do not share your RPubs username
-or document URLs with other students, as this could lead to academic
-dishonesty.</strong> </font></p>
+<font style="color:#f57f7f;"> <strong>Do not share your work with other
+students – not your RPubs username, not a document URL, not the HTML
+file – as this could lead to academic dishonesty.</strong> </font></p>
 <div id="before-you-start" class="section level1">
 <h1>Before you start</h1>
 <div id="keep-your-api-key-out-of-your-document" class="section level2">
 <h2>Keep your API key out of your document</h2>
-<p>This assignment ends with you publishing to RPubs, where
-<strong>everything is public</strong>.</p>
+<p>Whichever way you submit, your key must not be in the document. If
+you publish to RPubs, <strong>everything there is public</strong>. And
+if you submit the HTML file instead, I will consider any key in it
+compromised.</p>
 <ul>
 <li>Read your key with <code>Sys.getenv(&quot;GOOGLE_API_KEY&quot;)</code>. Never
 paste the key itself into a code chunk, and never print it.</li>
@@ -1710,9 +1712,9 @@ paste the key itself into a code chunk, and never print it.</li>
 when the variable is not set – it does <strong>not</strong> throw an
 error. So a missing key looks exactly like a working one until the
 request fails. Check it before you start.</li>
-<li>If your key ever does end up in a published document, treat it as
-compromised: delete the document, then issue a new key in the Google
-Cloud Console and delete the old one.</li>
+<li>If your key ever does end up in a document you published or handed
+in, treat it as compromised: delete the document, then issue a new key
+in the Google Cloud Console and delete the old one.</li>
 </ul>
 </div>
 <div id="watch-your-api-usage" class="section level2">
@@ -1833,9 +1835,17 @@ script runs.
 script.</li>
 <li>Use the <strong>Knit</strong> button in RStudio to render the
 document as HTML.</li>
-<li>Publish the rendered HTML to <strong>RPubs</strong>.</li>
-<li><font color="pink">Submit the URL of your RPubs document through
-Canvas by <strong>9/25/2026 Friday 11:59 PM</strong>: </font></li>
+<li>Submit <strong>one of the following two</strong> through Canvas.
+They are graded identically – pick whichever you prefer.
+<ul>
+<li><strong>Option A – RPubs link.</strong> Publish the rendered HTML to
+<strong>RPubs</strong> and submit the URL.</li>
+<li><strong>Option B – HTML file.</strong> Submit the rendered
+<code>.html</code> file itself. Choose this if you would rather not
+publish your work publicly.</li>
+</ul></li>
+<li><font color="pink">Due <strong>9/25/2026 Friday 11:59
+PM</strong>.</font></li>
 <li>A short quiz on this assignment may follow in the session after it
 is due. If there is one, the quiz score acts as a multiplier on this
 assignment’s grade. See <a href="https://ujhwang.github.io/urban-analytics-2026/#assignment-quizzes">Assignment
