@@ -1,0 +1,682 @@
+---
+title: "Tidying POI Data"
+author: "Uijeong Hwang"
+date: '2026-09-21'
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+
+```{r, include=F}
+library(tidyverse)
+library(sf)
+library(here)
+library(tmap)
+library(jsonlite)
+library(kableExtra)
+```
+
+
+### This R Markdown document has two parts. First, we will explore techniques for cleaning datasets using simple examples to demonstrate what each function does. Second, we will apply these techniques to clean the Google POI data we downloaded.
+
+# Data are Messy
+When you read textbooks on statistics or online tutorials on urban analytics, the examples often use data that are already neat and clean. They rarely show you the hassle involved in preparing those datasets.
+
+Real-world data, however, are messy and come with all sorts of issues. Even highly systematized sources (e.g., the Census Bureau) still require some cleaning. In my own research, I typically spend 40–60% of my time on data cleaning.
+
+What do I mean by **'messy?'** There isn't a strict definition. As Hadley Wickham illustrates with Tolstoy’s famous line: “Happy families are all alike; every unhappy family is unhappy in its own way.” However, **there are some common issues that come up again and again**. For example:
+
+1. Rows and columns that do not correspond to observations and variables
+2. Duplicated rows or columns
+3. Multiple variables stored in a single column
+4. Semi-structured data
+5. Missing values
+
+### Why are messy data a problem? 
+Urban analytics is ultimately about extracting useful knowledge from data. We do this through tools such as visualization, cartography, and statistical analysis. The problem is that many of these tools assume the data are already well-structured—and they struggle when faced with the kinds of issues listed above.
+
+
+## Issue 1 - Rows and columns that do not correspond to observations and variables
+There is a standardized framework that illustrates what is **not messy** -- Tidy Data. 
+**Note that all of my writing about tidy data is borrowed from Hadley Wickham's [paper](https://vita.had.co.nz/papers/tidy-data.pdf) and [book](https://r4ds.had.co.nz/tidy-data.html).** 
+
+<center>**In tidy data, <br> "Each variable must have its own column." <br> "Each observation must have its own row." <br> "Each value must have its own cell." <br>** <font size=3 color="gray">(from Chapter 12.2 in R for Data Science)</font></center>
+
+While the definition of an observation is usually straightforward, the definition of a variable can be less clear. Consider the example tables below (adapted from [this paper](https://vita.had.co.nz/papers/tidy-data.pdf)). 
+
+* **Table 1**: Treatment type forms the rows, and each column is an observation. This arrangement is inconsistent with the principles of tidy data.
+* **Table 2**: This is simply a transpose of Table 1. Now the rows are observations, and the columns represent the two treatment types. We often describe this structure as **wide format**.
+* **Table 3**: Here, treatment type is treated as a variable, and its values (the names of the treatments) appear repeatedly. This structure is called **long format**.
+
+
+Table 1. Typical presentation of data
+
+Treament      John Smith  Jane Doe    Mary Johnson
+-----------   ----------- ----------- ------------
+treatment_a   -           16          3
+treatment_b   2           11          1
+-----------   ----------- ----------- -----------
+
+Table 2. A transpose of Table 1
+
+name          treatment_a treatment_b
+----------    ----------- -----------
+John Smith    -           2
+Jane Doe      16          11
+Mary Johnson  3           1
+----------    ----------- -----------
+
+Table 3. Same data but variables in columns and obs. in rows
+
+name         treatment   result    
+------------ ----------- ----------- 
+John Smith   a           --          
+Jane Doe     a           16          
+Mary Johnson a           3
+John Smith   b           2          
+Jane Doe     b           11          
+Mary Johnson b           1
+------------ ----------- ----------- 
+
+Both Table 2 and 3 have their own use cases (let's not consider Table 1 anymore). For example, if we are interested in comparing treatment A and B (e.g., a t-test, correlation analysis, etc.), wide format would be more intuitive. In contrast, if we are interested in making graphs like [these examples](https://ggplot2.tidyverse.org/reference/facet_grid.html), ggplot2 package in R requires data to be in a long format. 
+
+In R, there are multiple ways to transform data between wide and long formats. I recommend **pivot_longer()** and **pivot_wider()** functions in the `tidyr` package. Let’s practice with a small toy dataset.
+
+```{r}
+library(tidyverse) # tidyr is included in tidyverse package.
+# Toy dataset
+toy_df <- data.frame(name = c("John", "Jane", "Mary"), 
+                     treatment_a = c(NA, 16, 3),
+                     treatment_b = c(2, 11, 1),
+                     treatment_c = c(6, 12, NA))
+print(toy_df)
+```
+
+```{r}
+# pivot longer
+(toy_long <- toy_df %>% 
+  pivot_longer(cols = ????, # specify columns to convert
+               names_to = ????, # new column name for 'cols' in character
+               values_to = ????)) # new name for the column storing the values in character
+```
+
+```{r}
+# back to wider
+(toy_wide <- toy_long %>% 
+  pivot_wider(id_cols = ????, # unique identifier
+              names_from = ????, # from which columns should the new column names come?
+              values_from = ????)) # from which columns should the values come?
+```
+
+> At first, the issue of defining rows and columns may not seem very relevant—after all, we are often used to working with datasets that were designed by people who already considered these structural questions. <br><br>
+In urban analytics, however, we frequently build our own datasets from sources that were never intended to fit neatly into a spreadsheet format. For instance, there is no universally accepted way to convert image data into an Excel-like table. Similarly, when converting free-form text (e.g., social media data) into a structured dataset, we need to carefully decide what counts as an observation and what should be treated as a variable.
+
+
+## Issue 2 - Duplicated rows or columns
+Duplicated rows or columns are a common issue, especially when acquiring data through APIs. Fortunately, R provides several ways to identify and remove duplicates. Two of the most frequently used functions are `duplicated()` and `distinct()`.
+
+### duplicated()
+The `duplicated()` function takes a vector (or a data frame) and returns a logical vector indicating which elements are duplicates. For example, given the vector `c("A", "A", "A")`, the result is `c(FALSE, TRUE, TRUE)`. In other words, the first occurrence of `"A"` is considered unique (`FALSE`), while the subsequent values are marked as duplicates (`TRUE`).
+
+This behavior makes it easy to filter out duplicates. By applying the negation operator `!`, we can keep only the unique values. For instance:
+
+```{r}
+dupl_df <- data.frame(name = c("A", "A", "B", "C", "C", "C", "D"),
+                      GPA = c(3.5, 3.5, 4.0, 2.0, 3.0, 3.0, 2.0)) 
+
+# Base R function
+????(dupl_df$name)
+
+# Duplicates in column "name" removed.
+dupl_df[????(dupl_df$name),]
+```
+
+### distinct()
+The `distinct()` function (from the dplyr package) is another common way to handle duplicates. Unlike `duplicated()`, which hands you a logical vector that you then have to use for subsetting yourself, `distinct()` does the subsetting for you and returns a data frame directly.
+
+You can pass one or more variable names as arguments, and `distinct()` will return the unique combinations of those variables. By default, it drops any columns not included in the argument list. To keep all other columns, you can set the option `.keep_all = TRUE`.
+
+For example:
+
+```{r}
+# Remove duplicated rows using 'name' column
+dupl_df %>% distinct(name)
+
+# Remove duplicated rows using both 'name' and 'GPA' columns
+dupl_df %>% distinct(name, GPA)
+```
+
+```{r}
+# Remove duplicated rows using 'name' column while keeping other columns.
+dupl_df %>% distinct(????)
+```
+
+## Issue 3 - Multiple variables crammed into a single column
+
+A very common example comes from Census data. You'd often see values like:
+```
+Census Tract 9501, Appling County, Georgia
+```
+all in **one column**. This string actually contains three separate variables: **Tract**, **County**, and **State**.
+
+We can break the string into its components using `separate()` from the `tidyr` package or `str_split_fixed()` from the `stringr` package.
+
+### Important notes when using separate()
+* If the number of resulting components is inconsistent across rows, `separate()` will give you a warning and discard any “overflow” pieces.
+* If a row does not contain the expected separator, `separate()` will fill in NA for the missing values.
+* Be careful with the `sep` argument: whitespace matters!
+
+```{r warning=TRUE}
+# A character vector to split
+onecol_df <- data.frame(labels = c('a1','b_2','c_3_2','d_4_1'))
+
+# split the character at _
+onecol_df %>% separate(col = "labels", 
+                       sep = "_", 
+                       into = c("alphabet", "number1", "number2")) 
+```
+
+### The modern replacement: `separate_wider_delim()`
+
+As of tidyr 1.3, `separate()` is **superseded**. It still works and is not going away, but new code should use `separate_wider_delim()` instead. The practical difference is that the newer function makes you state *up front* what should happen to rows that do not have the expected number of pieces, rather than handing you a warning after the fact:
+
+* `too_few = "align_start"` -- pad the short rows with `NA` (this is what `separate()` does silently).
+* `too_many = "merge"` -- keep the overflow in the last column instead of discarding it.
+
+```{r}
+onecol_df %>% separate_wider_delim(cols = labels,
+                                   delim = "_",
+                                   names = c("alphabet", "number1", "number2"),
+                                   too_few = "align_start")
+```
+
+Notice there is no warning this time -- not because the ragged rows went away, but because you told the function what to do about them.
+
+```{r}
+# split the strings using str_split_fixed()
+onecol_df$labels %>% str_split_fixed(pattern = "_", 
+                                     n = ????) 
+```
+
+
+## Issue 4 - Semi-structured data
+
+Semi-structured data is "a form of structured data that does not obey the tabular structure of data models associated with relational databases or other forms of data tables" ([Wikipedia](https://en.wikipedia.org/wiki/Semi-structured_data)). The most common formats you will encounter are XML and JSON. These formats are widely used for storing and transmitting information because they are flexible, hierarchical, and human-readable. For example:
+
+* JSON is the default format for many APIs, including Google’s.
+* XML is common in government datasets, metadata files, and older web services.
+
+In urban analytics, semi-structured data often comes from web scraping, open data portals, or API responses. The challenge is that while the data are “structured” in a loose sense, they do not fit neatly into rows and columns. To analyze them effectively, we need to parse and flatten them into a tabular format.
+
+In R, the most useful packages for this task are:
+
+* `jsonlite` – for reading and flattening JSON files or API responses (`fromJSON()`).
+* `tidyr` / `dplyr` – for further reshaping once the nested structures are flattened.
+
+
+Below is a step-by-step example using JSON data in R. First, let's load the JSON file as close to the original format as possible using `simplifyVector = FALSE`, which keeps all nested elements as lists. Using `str(json)` allows you to inspect the nested structure.
+
+```{r}
+json <- fromJSON("https://raw.githubusercontent.com/ujhwang/urban-analytics-2026/main/Lab/module_1/week2/json_example.json",
+                 simplifyVector = F)
+str(json)
+```
+
+Next, we can load the JSON while forcing it into a data frame, but **without flattening** (`flatten = F`). Take a look at the data with `glimpse(not_flat)`. Notice that some columns contain nested data frames. This happens because the JSON has been converted into a data frame while keeping the nested structure intact.
+
+```{r}
+not_flat <- fromJSON("https://raw.githubusercontent.com/ujhwang/urban-analytics-2026/main/Lab/module_1/week2/json_example.json",
+                     flatten = F)
+glimpse(not_flat)
+```
+
+Now, let's load the JSON again and flatten it (`flatten = T`). Nested elements will become separate columns where possible (e.g., `customer.name`, `customer.email`). However, the `products` column still contains a nested data frame. Why?
+
+```{r}
+flat <- fromJSON("https://raw.githubusercontent.com/ujhwang/urban-analytics-2026/main/Lab/module_1/week2/json_example.json",
+                 flatten = T)
+glimpse(flat)
+```
+
+We can further process the **unflattened JSON** using the `tidyr` package. With the `unnest_wider` function, we can explicitly specify which columns to expand: `customer` and `products`. After this step, the output has 10 separate columns.
+
+```{r}
+unnested_wide <- not_flat %>% 
+  unnest_wider(c(customer, products), names_sep = "_")
+
+unnested_wide %>% kable()
+```
+
+However, if you inspect the columns derived from the original `products` column, they are still **list-columns**. Again, why?
+
+```{r}
+unnested_wide$products_category
+```
+
+
+<font color="pink">The main issue is that the JSON contains nested data frames with multiple rows per entry, so trying to **expand them directly into columns** doesn’t work — because the number of rows in the nested data frames doesn’t always match the number of rows in the main data frame.</font>
+
+There are four ways to proceed:
+
+* **Keep** the list-columns: use this when you want to retain nested data without fully expanding it
+* **Summarize** or **collapse** the list-columns: use this when you want a single representation per observation.
+* Convert to a **relational structure**: save the nested data frame as a separate dataset and join it with the main table when needed.
+* Convert the entire data frame into a **long format**: use this when you want each element of the nested data frame to have its own row.
+
+
+### Collapsing list-columns (the second option)
+
+Sometimes, a nested list-column contains multiple values per observation (e.g., multiple products in an order). If you don’t need each product as a separate row, you can collapse or summarize the list-column so that each observation has a single, combined representation.
+
+In the example below, we use `map_chr()` from the `purrr` package to iterate over each element of the list-columns in `unnested_wide` and combine the values into a single string using `str_c()` (from `stringr`), separated by commas.
+
+The `~str_c(.x, collapse=",")` part is an **anonymous function**: a function written on the spot that has no name and disappears after it runs. The tilde `~` stands in for `function()`, and `.x` refers to whichever element is currently being processed. Since R 4.1 you can also use the native lambda shorthand `\(x)`. All three lines below mean exactly the same thing:
+
+```{r eval=F}
+map_chr(products_category, function(x) str_c(x, collapse=","))  # full form
+map_chr(products_category, ~str_c(.x, collapse=","))            # purrr tilde
+map_chr(products_category, \(x) str_c(x, collapse=","))         # native lambda (R 4.1+)
+```
+
+```{r}
+# Concatenate what's inside the list
+unnested_wide_concat <- unnested_wide %>% 
+  mutate(products_product_id = products_product_id %>% 
+           map_chr(., ~str_c(.x, collapse=",")),
+         products_name = products_name %>% 
+           map_chr(., ~str_c(.x, collapse=",")),
+         products_category = products_category %>% 
+           map_chr(., ~str_c(.x, collapse=",")),
+         products_price = products_price %>% 
+           map_chr(., ~str_c(.x, collapse=",")))
+```
+
+Do you see the difference from the previous result (`unnested_wide$products_category`)?
+```{r}
+unnested_wide_concat$products_category
+```
+
+### Converting to a relational structure (the third option)
+
+Collapsing costs you information: `"Electronics, Electronics"` is a single string, so you can no longer ask questions about an individual product without parsing that string back apart. Going long (below) keeps everything, but it breaks the rule that one row = one order.
+
+The third option keeps both properties by using **two tables**. The main table stays one row per order, and the nested part moves into a table of its own that carries the key (`order_id`) so the two can be reconnected on demand. This is the same idea as a relational database.
+
+```{r}
+# Side table: one row per product, linked back by order_id
+products_tbl <- not_flat %>%
+  select(order_id, products) %>%
+  unnest_longer(products) %>%   # one row per product
+  unnest_wider(products)        # expand product details into columns
+
+kable(products_tbl)
+```
+
+```{r}
+# Main table: one row per order, with the nested column removed
+orders_tbl <- not_flat %>%
+  select(-products) %>%
+  unnest_wider(customer, names_sep = "_")
+
+kable(orders_tbl)
+```
+
+When a question needs both tables, join them on the shared key. `left_join()` keeps every row of the left-hand table and fills with `NA` where the right-hand table has no match; `inner_join()` keeps only the rows that appear in both.
+
+```{r}
+orders_tbl %>%
+  left_join(products_tbl, by = "order_id") %>%
+  kable()
+```
+
+<font color="pink">Look at the row count. `orders_tbl` had one row; the joined table has two, because that order contains two products -- and `total_amount` is now repeated on both rows. **A join does not preserve your row count.** Check `nrow()` before and after every join, and never sum a column that got duplicated this way.</font>
+
+### Converting semi-structured data into a long format (the fourth option)
+Converting into a **long format** can be done by using `unnest_longer()`. This expands the nested list-columns so that each element becomes its own row.
+
+However, after `unnest_longer()`, the elements of the nested data frames are still stored as **data frames**. To fully expand these into separate columns, we use `unnest_wider()` immediately afterward. This ensures that each attribute within the nested data frame (e.g., `customer$name`, `products$category`) becomes its own column in the long-format table.
+
+```{r}
+unnested_long_wide <- not_flat %>% 
+  unnest_longer(c(customer, products)) %>% # Each element becomes a separate row
+  unnest_wider(c(customer, products), names_sep = "_") # Expand nested data frames into columns
+
+kable(unnested_long_wide)
+```
+
+>Key point: `unnest_longer()` handles the rows, and `unnest_wider()` handles the columns. Using both together gives a fully tidy long-format table.
+
+
+## Issue 5 - Missing Values
+
+In R, `NA` is used to represent missing data. Many core functions in R do not handle `NA` properly.
+
+### Finding and removing NAs
+
+There are several ways to detect and remove `NA` values in R:
+
+* **Base R**: The `is.na()` function returns a logical vector, with `TRUE` for values that are `NA` and `FALSE` otherwise. You can combine this with `dplyr` verbs to filter out rows containing `NA` in specific columns.
+* **tidyr**: The `drop_na()` function removes rows with missing values. However, you should exercise caution:
+  * If you call `drop_na()` **without specifying columns**, it will drop any row that has an `NA` in **any column**.
+  * This can unintentionally remove many rows, potentially discarding valuable data **without you noticing**.
+
+### Common pitfall
+A common mistake is dropping rows with `NA`s in columns that are **not relevant** to your analysis.
+
+* If some rows have missing values in columns you **won’t use**, these `NA`s are usually harmless.
+* Blindly dropping them may cause you to lose valuable information for no reason.
+
+>Key point: Always check which columns contain missing values and decide intentionally how to handle them, rather than removing NAs indiscriminately.
+
+```{r}
+# This is the same toy_df from above
+toy_df <- data.frame(name = c("John", "Jane", "Mary"), 
+                     treatment_a = c(NA, 16, 3),
+                     treatment_b = c(2, 11, 1),
+                     treatment_c = c(6, 12, NA))
+```
+
+```{r}
+# Dropping NA using is.na()
+toy_df %>% filter(????(treatment_a))
+```
+
+```{r}
+# Check across all columns and drop all rows that have at least one NA.
+toy_df %>% ????
+```
+
+
+### Filling missing values instead of dropping them
+
+Deletion is not the only option. Two functions cover most of the simple cases:
+
+* `replace_na()` (tidyr) substitutes a constant wherever a column is `NA`.
+* `coalesce()` (dplyr) takes the first non-`NA` value across several columns, which is useful when the same information is spread across multiple partially-complete columns.
+
+```{r}
+# Replace NA with 0
+toy_df %>% mutate(treatment_a = replace_na(treatment_a, 0))
+```
+
+```{r}
+# Use treatment_a where it exists, otherwise fall back to treatment_b
+toy_df %>% mutate(best_available = coalesce(treatment_a, treatment_b))
+```
+
+<font color="pink">Filling is an **assumption**, not a cleanup step. "We do not know this value" and "this value is 0" are different claims, and every mean, sum, and regression you run afterwards will believe the second one. If you fill missing values, say so explicitly in your write-up.</font>
+
+
+# Tidying Google Places Data
+
+Now let’s apply what we’ve learned to the Google Places dataset we collected last week. We’ll start by importing the data and doing a quick check to identify potential issues.
+
+```{r}
+poi <- read_rds(????)
+
+# Preview the POI data
+poi %>% 
+  select(-places.reviews, -places.reviewSummary.text.text) %>% # exclude these columns because their outputs are too long
+  head(5) %>% 
+  kable()
+```
+
+Looking at the preview, our POI data doesn't seem to suffer from *Issue 1: rows and columns that do not correspond to observations and variables*, so we'll move on to *Issue 2: duplicated rows or columns*.
+
+## Issue 2 - Duplicates
+
+Because the search radii we used for API queries overlapped by design, it is expected that the collected POI data contain many duplicates. Fortunately, in Google Places data, each point of interest (POI) has a unique identifier stored in the `places.id` column. We can use this column to ensure that each row in the dataset corresponds to a unique POI.
+
+```{r}
+poi_unique <- poi %>% ????(places.id, .keep_all=T)
+
+glue::glue("Before dropping duplicated rows, there were {nrow(poi)} rows. After dropping them, there are {nrow(poi_unique)} rows.")
+```
+
+## Issue 3 - Multiple variables in one column
+
+Our POI data doesn’t suffer from this issue directly, but for demonstration purposes, let’s say we want to extract ZIP codes from the `places.formattedAddress` column. The addresses are stored as long strings containing several pieces of information (street, city, state, ZIP code). If we want to analyze ZIP codes separately, we need to split them out into their own column.
+
+One way is to *directly extract the ZIP code using a regular expression* (`str_extract()` from the `stringr` package). This works because ZIP codes follow a consistent 5-digit pattern:
+```{r}
+str_extract(poi_unique$places.formattedAddress, "\\d{5}")
+```
+
+Another way is to split the address string into components and then select the ZIP code part. This requires choosing the right delimiter—in this case, "**GA **" or "**, USA**"—so that the string is broken at the right places:
+
+```{r}
+# Check if the delimiters are working as expected
+str_split_fixed(poi_unique$places.formattedAddress, pattern = "GA |, USA", n = 3) %>% head(10)
+
+# Select the second column that contains zip codes
+str_split_fixed(poi_unique$places.formattedAddress, pattern = "GA |, USA", n = 3) %>% .[,2]
+```
+
+## Issue 4 - Semi-structured data
+
+The main challenge in our POI data comes from its original **JSON** format, which introduces **list-columns** into the dataset. Let’s begin by identifying which columns are list-columns.
+
+```{r}
+for (col in colnames(poi_unique)){
+  if (class(poi_unique[[col]]) == "list"){
+    print(col)
+  }
+}
+```
+
+One of these list-columns is `places.types`:
+
+```{r}
+# print the first element
+poi_unique$places.types[[1]]
+```
+
+The `places.types` column stores a character vector for each POI, meaning each place can belong to multiple types (e.g., "restaurant", "point_of_interest", "food"). To make this column easier to work with, we can collapse the vector into a single comma-separated string:
+
+```{r}
+poi_flat <- poi_unique %>%
+  mutate(places.types = places.types %>% 
+           map_chr(., ~????))
+
+head(poi_flat$places.types)
+```
+
+Another list-column is `places.reviews`:
+
+```{r}
+# print the first element
+poi_flat$places.reviews[[1]]
+```
+
+Unlike `places.types`, the `places.reviews` column is more complex. Each element contains a data frame with multiple rows, because each POI can have multiple reviews. This makes it trickier to tidy, since it introduces a one-to-many relationship between POIs and their reviews.
+
+Since we want each row of the `poi` dataset to correspond to a single unique POI, converting reviews directly into a long format inside this table would break that principle. Instead, the best approach is to separate the reviews into their own dataset, creating a relational structure:
+
+* The main `poi` table will contain one row per POI.
+* The `reviews` table will contain one or more rows per POI, linked back by the unique `places.id`.
+
+```{r}
+# Create a separate dataset from the `places.reviews` column
+reviews <- poi_flat %>% select(places.id, places.reviews)
+
+# Convert `reviews` into a long format
+reviews <- reviews %>% 
+  ????(places.reviews) %>%  # one row per review
+  ????(places.reviews)      # expand review details into columns
+
+# Remove the now-redundant reviews column from the main POI dataset
+poi_flat <- poi_flat %>% select(-places.reviews)
+```
+
+## Issue 5 - Missing values
+
+The first step in handling missing values is to identify where they occur:
+
+```{r}
+# Count the number of NAs in each column
+poi_flat %>% map_dbl(., ~sum(is.na(.x)))
+```
+
+As expected, several columns contain `NA`s. Keep in mind that you do not need to drop rows just because they contain missing values -- especially if those missing columns are irrelevant to your analysis.
+
+For our purposes, let’s assume the following two variables are critical to the analysis:
+
+* `places.priceLevel`
+* `places.outdoorSeating`
+
+Rows with `NA`s in these columns need to be addressed. For all other columns, we will keep the rows intact for now, since those variables may or may not be required in later steps.
+
+```{r}
+# Drop rows that have missing values in either of the two columns
+poi_dropna <- poi_flat %>% 
+  ????
+
+print(paste0("Before: ", nrow(poi_flat)))
+print(paste0("After: ", nrow(poi_dropna)))
+```
+
+
+## Filtering POIs outside the city boundary
+In last week’s R Markdown document, the final plot displayed a map of the downloaded POI data. Many points appeared outside the City of Decatur boundary because several search radii extended beyond the city limits. To ensure accuracy, we need to remove those points that fall outside the city boundary.
+
+```{r}
+# city boundary
+decatur <- tigris::places("GA", progress_bar = FALSE) %>% 
+  filter(NAME == 'Decatur') %>% 
+  st_transform(4326)
+
+# Converting poi_dropna into a sf object
+poi_sf <- poi_dropna %>% 
+  st_as_sf(coords=c("places.location.longitude", "places.location.latitude"), 
+           crs = 4326)
+
+# POIs within the city boundary
+poi_sf_in <- ????[????, ]
+
+print(paste0("Before: ", nrow(poi_sf)))
+print(paste0("After: ", nrow(poi_sf_in)))
+```
+
+## Comparing messy vs. tidy data
+
+The table below summarizes the key changes in the dataset’s structure, showing how many rows and columns were modified through the cleaning process.
+
+```{r}
+glue::glue("number of rows before: {nrow(poi)} -> after: {nrow(poi_sf_in)} \n
+number of columns before: {ncol(poi)} -> after: {ncol(poi_sf_in)} \n")
+```
+
+See how the map has changed after tidying and filtering the POI data.
+```{r}
+# Visualize
+tmap_mode("view")
+tm_shape(decatur) + 
+  tm_borders() + 
+  tm_shape(poi_sf_in) + 
+  tm_dots(shape = 21,
+          col = "black",
+          lwd = 1,
+          fill = "places.rating",
+          fill.scale = tm_scale_continuous(values = "magma"),
+          size = "places.userRatingCount",
+          popup.vars = c("Name" = "places.displayName.text",
+                         "Rating" = "places.rating",
+                         "Rating Count" = "places.userRatingCount"))
+```
+
+
+# Other Useful Functions
+
+### Re-coding values with `case_when()`
+
+The `case_when()` function is useful when you want to re-code the values of a variable based on specific conditions. Each argument has two parts: a condition and the corresponding output.
+
+For example, in the code below:
+
+* `places.userRatingCount > 500` is the condition.
+* `"many"` (after the tilde `~`) is the output if the condition is true.
+
+This way, `case_when()` evaluates the condition for each row and assigns the appropriate label.
+
+```{r}
+poi %>% 
+  # Create a new variable using mutate
+  mutate(review_count_binary = case_when(
+    places.userRatingCount > 500 ~ "many",
+    places.userRatingCount <= 500 ~ "few"
+  )) %>% 
+  # Select only relevant columns to simplify output
+  select(places.userRatingCount, review_count_binary) %>% 
+  head(10)
+```
+
+### Applying operations to multiple columns with `across()`
+
+The `across()` function lets you apply the same operation to multiple columns at once.
+
+In the example below:
+
+* `where(is.numeric)` selects all numeric columns.
+* `scale()` standardizes the selected numeric columns into z-scores.
+
+```{r}
+poi %>% 
+  mutate(across(where(is.numeric), scale)) %>% 
+  select(where(is.numeric)) %>% 
+  head(4)
+```
+
+### Counting values with `table()` or `count()`
+
+Sometimes, you’ll want to check how many times each value occurs in a variable. This is especially useful during data exploration, though less common in data cleaning.
+
+You can use either:
+
+* `table()` from base R, or
+* `count()` from the `dplyr` package.
+
+```{r}
+# Using table (base R)
+poi %>% pull(places.priceLevel) %>% table()
+
+# Using count (dplyr)
+poi %>% count(places.priceLevel)
+```
+
+`count()` is shorthand for `group_by()` followed by `summarise(n = n())`. When you need more than a count -- say, the average rating within each price level -- use the longer form:
+
+```{r}
+poi %>%
+  group_by(places.priceLevel) %>%
+  summarise(n = n(),
+            mean_rating = mean(places.rating, na.rm = TRUE))
+```
+
+<font color="pink">`na.rm = TRUE` matters here. Without it, a single `NA` anywhere in `places.rating` makes that entire group's mean `NA`.</font>
+
+
+**<font size=3 color="gray">References</font>**  
+<font size=3 color="gray">
+
+Codd, E. F. (1990). The relational model for database management: version 2. Addison-Wesley Longman Publishing Co., Inc..
+
+Wickham, H., & Grolemund, G. (2016). R for data science: import, tidy, transform, visualize, and model data. " O'Reilly Media, Inc.".
+
+</font><br><br>
+
+
+```{r}
+# If your POI data is not ready yet, use this:
+# poi <- read_rds("https://raw.githubusercontent.com/ujhwang/urban-analytics-2026/main/Lab/module_1/week1/google_poi_data.rds")
+```
+
