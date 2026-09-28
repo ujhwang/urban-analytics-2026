@@ -72,7 +72,7 @@ We need:
 
 Let's first download the ACS 5-year estimate data for 2015 and 2024 for the two counties at the Tract level.
 
-```{r, results="hide"}
+```{r results="hide"}
 census_api_key(Sys.getenv(????))
 
 tract_2015 <- suppressMessages(
@@ -139,21 +139,22 @@ Note: In the code chunk below, `tract_2015 %<>%` is shorthand for `tract_2015 <-
 tract_2015 %<>% st_transform(32616) %>% st_make_valid()
 tract_2024 %<>% st_transform(32616) %>% st_make_valid()
 
-# Spatial intersection join
-tract_intersect <- st_intersection(tract_2015 %>% rename(GEOID_2015 = GEOID), 
-                                   tract_2024 %>% rename(GEOID_2024 = GEOID))
+# Spatial intersection join. Which two layers are we overlaying?
+tract_intersect <- st_intersection(???? %>% rename(GEOID_2015 = GEOID), 
+                                   ???? %>% rename(GEOID_2024 = GEOID))
 
 # Compute area of each overlap and use it as a weight
 tract_intersect %<>% 
   mutate(area_overlap = as.numeric(st_area(.)),
          median_rent_2br_2015_weighted = median_rent_2br_2015 * area_overlap)
 
-# Aggregate 2015 rent values to the 2024 tract level
+# Aggregate 2015 rent values to the 2024 tract level.
+# We want one row per NEW tract, so which ID should the rows be grouped by?
 tract_2015_aligned <- tract_intersect %>% 
-  group_by(GEOID_2024) %>% 
+  group_by(????) %>% 
   summarize(
     median_rent_2br_2015_aligned = 
-      (sum(median_rent_2br_2015_weighted, na.rm = TRUE) / sum(area_overlap, na.rm = TRUE)) %>% round(2)
+      (sum(median_rent_2br_2015_weighted, na.rm = TRUE) / sum(????, na.rm = TRUE)) %>% round(2)
   )
 
 # Join the aligned 2015 rent values back to 2024 tracts
@@ -165,7 +166,7 @@ tract <- left_join(tract_2024,
 ```
 
 The following figure illustrates what we just did.
-![](img/area_weighted_mean.png)
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_2/week1/img/area_weighted_mean.png)
 
 ### Get changes in median gross rent for 2-bedroom
 
@@ -173,7 +174,8 @@ Calculate the change of median gross rent for 2-bedroom between 2015 and 2024. T
 ```{r}
 tract %<>% 
   mutate(
-    median_rent_2br_change = (median_rent_2br_2024 - median_rent_2br_2015)/median_rent_2br_2015
+    # Proportional change = (new value - old value) / old value
+    median_rent_2br_change = (???? - ????)/median_rent_2br_2015
     ) %>% 
   drop_na(median_rent_2br_change) %>% 
   filter(median_rent_2br_2015 > 300 & median_rent_2br_change < 3)
@@ -204,11 +206,13 @@ tm_shape(tract) + tm_fill(fill = "median_rent_2br_change",
 
 Classify Census Tracts into the three categories we defined. Review the `case_when()` documentation to understand how the function evaluates conditions and returns the corresponding values sequentially.
 ```{r}
+# `case_when()` stops at the FIRST condition that is TRUE, so the order of these
+# three lines is part of the definition -- not a style choice.
 tract %<>% 
   mutate(gentri_category = case_when(
-    median_rent_2br_2015 >= median(median_rent_2br_2015) ~ "Unaffordable",
-    median_rent_2br_2024 >= median(median_rent_2br_2024) | median_rent_2br_change >= 1 ~ "Gentrifying",
-    TRUE ~ "Affordable"))
+    median_rent_2br_2015 >= median(median_rent_2br_2015) ~ "????",
+    median_rent_2br_2024 >= median(median_rent_2br_2024) | median_rent_2br_change >= ???? ~ "Gentrifying",
+    ???? ~ "Affordable"))  # what catches every row that matched neither condition?
 ```
 
 How many Tracts are gentrifying between 2015 and 2024?
@@ -247,6 +251,7 @@ Remove POIs without any review rating.
 yoga %<>% ????
 ```
 
+
 ### Let's see if the results look fine
 
 Get a summary using `skimr::skim()` and display the locations of yoga studios on the Census Tract map.
@@ -268,7 +273,7 @@ We aim to determine the presence of yoga studios at the Census Tract level. To a
 3. Use these GEOIDs to create a boolean column indicating whether a yoga studio is present in each Tract.
 
 
-```{r, warning=F}
+```{r warning=F}
 ## Make sure the CRS of the two sf objects are in the same PCS
 tract %<>% st_transform(????)
 yoga %<>% st_transform(????)
@@ -313,7 +318,8 @@ Let's see the proportion of Census Tracts with at least yoga studio by neighborh
 ```{r}
 yoga_summary <- tract %>% 
   st_drop_geometry() %>% 
-  group_by(yoga, gentri_category) %>% 
+  # One row for every combination of "has a yoga studio?" and neighborhood type
+  group_by(????, ????) %>% 
   summarize(n = n()) %>% 
   ungroup() %>% 
   mutate(proportion = n / sum(n))
@@ -387,21 +393,23 @@ tract_control_vars %<>%
 model_data <- tract %>% left_join(tract_control_vars, by = ????)
 ```
 
+
 ### Run the model
 
 Since our dependent variable is the presence of yoga studio (TRUE/FALSE), Let's run a binomial logistic regression model using `glm()`.
 
 ```{r}
-m1 <- glm(yoga ~ gentri_category + high_edu_pct + hhincome + median_age + nonfamily_hh_pct + 
+# Which column is the outcome we are trying to explain?
+# And which `family` does a TRUE/FALSE outcome call for?
+m1 <- glm(???? ~ gentri_category + high_edu_pct + hhincome + median_age + nonfamily_hh_pct + 
             minority_pct + commute_walk_pct + commute_bike_pct + pop_density, 
-          data=model_data, family = "binomial")
+          data=model_data, family = "????")
 
 ????(m1)
 ```
-
 
 > How would you interpret this result?
 
 ### So what do you think about our initial question? ***Are yoga studios associated with gentrification?***
 
-### Would the result be different if we use ***median real estate tax*** instead of median rent? Or what if we use the **proximity** to yoga studio instead of the presence?
+### Would the result be different if we used ***median real estate tax*** instead of median rent? Or what if we used the **proximity** to yoga studios instead of the **presence**?
