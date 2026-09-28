@@ -204,14 +204,14 @@ tm_shape(tract) + tm_fill(fill = "median_rent_2br_change",
 
 ### Neighborhood type by gentrification status
 
-Classify Census Tracts into the three categories we defined. Review the `case_when()` documentation to understand how the function evaluates conditions and returns the corresponding values sequentially.
+Classify Census Tracts into the three categories we defined: "Gentrifying," "Affordable," and "Unaffordable". Review the `case_when()` documentation to understand how the function evaluates conditions and returns the corresponding values sequentially.
 ```{r}
 # `case_when()` stops at the FIRST condition that is TRUE, so the order of these
 # three lines is part of the definition -- not a style choice.
 tract %<>% 
   mutate(gentri_category = case_when(
     median_rent_2br_2015 >= median(median_rent_2br_2015) ~ "????",
-    median_rent_2br_2024 >= median(median_rent_2br_2024) | median_rent_2br_change >= ???? ~ "Gentrifying",
+    median_rent_2br_2024 >= median(median_rent_2br_2024) | median_rent_2br_change >= 1 ~ "????",
     ???? ~ "Affordable"))  # what catches every row that matched neither condition?
 ```
 
@@ -246,8 +246,9 @@ This data covers Fulton and DeKalb Counties, GA, and includes all Google Places 
 yoga <- st_read("https://raw.githubusercontent.com/ujhwang/urban-analytics-2026/main/Lab/module_2/week1/yoga_studios_fulton_dekalb.geojson")
 ```
 
-Remove POIs without any review rating.
+Remove POIs without any review rating (i.e., missing values in `rating_count`).
 ```{r}
+# `yoga %<>%` is a shorter version of `yoga <- yoga %>%`
 yoga %<>% ????
 ```
 
