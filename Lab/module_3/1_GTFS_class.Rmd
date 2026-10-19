@@ -1,0 +1,715 @@
+---
+title: "GTFS"
+author: 'Uijeong "UJ" Hwang'
+date: '2026-10-19'
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+    code_folding: show
+---
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+
+# Import required packages
+library(tidytransit)
+library(tidyverse)
+library(units)
+library(sf)
+library(leaflet)
+library(tidycensus)
+library(plotly)
+library(leafsync)
+```
+
+```{=html}
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+```
+
+# What is the General Transit Feed Specification (GTFS)?
+
+| The GTFS is a common format for public transit schedules and associated geographic information provided by transit agencies.
+
+Before GTFS, there wasn't a standardized format for transit timetables and other associated information ([source](https://en.wikipedia.org/wiki/GTFS)). Users of transit data across multiple transit agencies had to deal with different data formats. With GTFS, feeds from different agencies became standardized (although not perfect), making applications of the data easy.
+
+Useful Links:
+
+-   [tidytransit (i.e., R package) Vignettes](https://cran.r-project.org/web/packages/tidytransit/index.html)
+-   [gtfs.org](https://gtfs.org)
+-   [Google Transit](https://developers.google.com/transit/gtfs/reference)
+-   [Mobility Database](https://mobilitydatabase.org)
+-   [transitland](https://www.transit.land/)
+-   [TransitFeeds (sunsetting)](https://transitfeeds.com/)
+
+Let's download GTFS feed provided by Metropolitan Atlanta Rapid Transit Authority (MARTA).
+
+```{r, results='hide'}
+gtfs <- read_gtfs("https://www.itsmarta.com/google_transit_feed/google_transit.zip")
+
+analysis_date <- as.Date("2026-11-18")
+```
+
+<br>
+
+GTFS consists of multiple tables and comes in a zip file as a single package. Transit is a complex system that contains multiple components (e.g., routes, stops, service schedules) working together. The table below shows a brief description of what each data.frame contains. This table is taken from [Google](https://developers.google.com/transit/gtfs/reference).
+
+**Table 1. Description of tables in GTFS feed**
+
+| Table name      | Defines                                                                                                                                                         |
+|:------------|:----------------------------------------------------------|
+| agency          | (Required) Transit agencies with service represented in this dataset.                                                                                           |
+| stops           | (Required) Stops where vehicles pick up or drop off riders. Also defines stations and station entrances.                                                        |
+| routes          | (Required) Transit routes. A route is a group of trips that are displayed to riders as a single service.                                                        |
+| trips           | (Required) Trips for each route. A trip is a sequence of two or more stops that occur during a specific time period.                                            |
+| stop_times      | (Required) Times that a vehicle arrives at and departs from stops for each trip.                                                                                |
+| calendar        | Service dates specified using a weekly schedule with start and end dates. This file is required unless all dates of service are defined in calendar_dates.txt.  |
+| calendar_dates  | Exceptions for the services defined in the calendar.txt. If calendar.txt is omitted, then calendar_dates.txt is required and must contain all dates of service. |
+| fare_attributes | Fare information for a transit agency's routes.                                                                                                                 |
+| fare_rules      | Rules to apply fares for itineraries.                                                                                                                           |
+| shapes          | Rules for mapping vehicle travel paths, sometimes referred to as route alignments.                                                                              |
+| frequencies     | Headway (time between trips) for headway-based service or a compressed representation of fixed-schedule service.                                                |
+| transfers       | Rules for making connections at transfer points between routes.                                                                                                 |
+| pathways        | Pathways linking together locations within stations.                                                                                                            |
+| levels          | Levels within stations.                                                                                                                                         |
+| feed_info       | Dataset metadata, including publisher, version, and expiration information.                                                                                     |
+| translations    | Translated information of a transit agency.                                                                                                                     |
+| attributions    | Specifies the attributions that are applied to the dataset.                                                                                                     |
+
+These tables are *relational tables* that are connected through a system of join keys. The schematic below shows which tables are linked to which tables, through which join keys. Understanding this structure is essential in using GTFS.
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/GTFS_relational_structure.png)
+
+Figure 1. GTFS relational table structure IMAGE SOURCE: <https://cran.r-project.org/web/packages/tidytransit/vignettes/introduction.html>
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/joins.jpg)
+
+The examples below use two tables with three names in common: Andrew, Olivia, and Emily. Choose a join based on which rows you want to keep.
+
+| Join | Rows kept |
+|---|---|
+| `left_join(x, y)` | All rows from `x`, plus matching information from `y` |
+| `right_join(x, y)` | All rows from `y`, plus matching information from `x` |
+| `inner_join(x, y)` | Only rows with matches in both tables |
+| `full_join(x, y)` | All rows from both tables |
+
+Unmatched columns contain `NA`. If a key has multiple matches, the join returns each matching combination.
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/table_join_1.png)
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/table_join_2.png)
+  
+  
+# Handling GTFS data in R
+
+## What's inside `gtfs`?
+
+Now, let's take a look at the `gtfs` object in which we read the GTFS feed from MARTA. This object is a list. In it, `names(gtfs)` shows that there are `r length(gtfs)` data.frames. Notice that there are many tables displayed in Table 1 above, but only some of them are in `gtfs`. Notice in Table 1 that only some are required; others are optional.
+
+```{r}
+typeof(gtfs)
+names(gtfs)
+print(head(gtfs))
+```
+
+<br>
+
+## Converting GTFS Into Geospatial Format
+
+The function `gtfs_as_sf` converts `shapes` and `stops` tables in GTFS data into `sf` objects. In the print out below, you will notice that all other tables have not changed, but 'shapes' and 'stops' tables are now **Simple feature collection** and have added column 'geometry' that contains a series of coordinates. Under the hood, `gtfs_as_sf` is no special function; this function uses `st_as_sf()` to do the conversion, the same way we have been doing so far in this class.
+
+Even though only shapes and stops are in sf format, that's fine. We can still figure out other tables' spatial properties because we can **join** the non-sf tables to `shapes` and/or `stops` using **join keys**.
+
+```{r}
+# Converting GTFS data into sf objects
+gtfs_sf <- tidytransit::gtfs_as_sf(gtfs, crs = 4326)
+gtfs_sf$stops %>% head() # Notice that this is POINT
+gtfs_sf$shapes %>% head() # This is LINESTRING
+```
+
+Let's take a look at their maps of their routes and stops, respectively. These maps (route shapes on the left; stop locations on the right) show the coverage of MARTA.
+
+Notice that I am using `leaflet` for mapping instead of `tmap`. Of course, you can make the same map with `tmap` package as well; I am using `leaflet` in this module just to expose you to different packages.
+
+```{r}
+# Visualize
+a <- leaflet(gtfs_sf$shapes) %>% 
+  addProviderTiles(providers$OpenStreetMap) %>%
+  addPolylines(weight = 2, color = "#0072B2", opacity = 0.85) %>%
+  addControl(htmltools::HTML("Route shapes")) 
+
+b <- leaflet(gtfs_sf$stops) %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addCircleMarkers(radius = 2.5, color = "#A50026", weight = 0.5,
+                   fillColor = "#D73027", fillOpacity = 0.8) %>% 
+  addControl(htmltools::HTML("Stop locations")) 
+
+leafsync::sync(a,b)
+```
+
+     
+<br><br>
+  
+# Measuring Geographic Coverage of Bus Transit
+
+Let's use MARTA's bus stops to measure geographic coverage and explore how it relates to neighborhood income and vehicle availability. More detailed equity analyses use additional measures, such as [this study](https://www.sciencedirect.com/science/article/pii/S0966692317303794).
+
+We measure **geographic coverage**: the proportion of each tract within 400 meters of a bus stop. This does not measure population served, walking access along streets, service frequency, reliability, or access to destinations.
+
+In this section, we will:
+
+1. Identify bus routes, their shapes, and their stops.
+2. Compare buffers around bus routes and bus stops.
+3. Intersect the bus-stop buffer with Census tracts.
+4. Calculate the proportion of each tract within the bus-stop buffer.
+
+## Step 1: Extracting Bus Routes and Stops
+
+The `routes` table identifies transit modes with `route_type`. Use the reference below to find the bus code.
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/GTFS_route_types.JPG)
+
+We need several GTFS tables to identify bus shapes and stops. The path to shapes is `routes -> trips -> shapes`; the path to stops is `routes -> trips -> stop_times -> stops`.
+
+Here we use `semi_join(x, y)` to keep rows in `x` whose keys appear in `y`. Unlike an attribute join, it does not add columns from `y` or repeat a row in `x` when the key has several matches. This lets us keep each shape and stop once even when many trips use them.
+
+> Find the bus code in the reference above. <br>
+> What ID column connects each pair of tables? Put join-key names in quotation marks.
+
+```{r}
+# Identify bus routes and their trips.
+bus_routes <- gtfs$routes %>%
+  filter(route_type == ????)
+
+bus_trips <- gtfs$trips %>%
+  semi_join(bus_routes, by = ????)
+
+# Keep each shape once, even when many trips follow it.
+bus_shapes <- gtfs_sf$shapes %>%
+  semi_join(bus_trips, by = ????)
+
+# Find stops visited by bus trips, keeping each stop once.
+bus_stop_ids <- gtfs$stop_times %>%
+  semi_join(bus_trips, by = ????) %>%
+  distinct(stop_id)
+
+bus_stops <- gtfs_sf$stops %>%
+  semi_join(bus_stop_ids, by = ????)
+```
+
+```{r}
+leaflet() %>%
+  addProviderTiles(providers$OpenStreetMap) %>%
+  addPolylines(data = bus_shapes, color = "#0072B2", weight = 2,
+               group = "Bus routes") %>%
+  addCircleMarkers(data = bus_stops, radius = 2, stroke = FALSE,
+                   fillColor = "#D73027", fillOpacity = 0.8,
+                   popup = ~stop_name, group = "Bus stops") %>%
+  addLayersControl(overlayGroups = c("Bus routes", "Bus stops"),
+                   options = layersControlOptions(collapsed = FALSE))
+```
+
+## Step 2: Drawing Buffers
+
+We use `st_buffer()` to draw **400-meter** buffers (approximately a quarter mile, or roughly a 5-minute walk) around bus routes and bus stops. Riders board at stops, not anywhere along a route. Where bus stops are closely spaced, the two buffers may look similar; where stops are farther apart, route buffers can include areas far from a boarding location. Neither buffer accounts for barriers or the walking street network.
+
+> Use the same projected CRS (PCS / WGS 84 / UTM zone 16N) and the distance given above for both buffers. <br>
+> `st_union()` combines overlapping buffers so we do not count the same area more than once. `st_sf()` puts the combined geometry into an `sf` object for the maps and intersection below.
+
+```{r}
+# Route buffers are used only for the comparison map.
+bus_route_buffer <- bus_shapes %>%
+  st_transform(crs = ????) %>%
+  st_buffer(dist = units::set_units(????, "m")) %>%
+  st_union() %>%
+  st_sf(geometry = .)
+
+# Stop buffers are used for the tract coverage analysis.
+bus_stop_buffer <- bus_stops %>%
+  st_transform(crs = ????) %>%
+  st_buffer(dist = units::set_units(????, "m")) %>%
+  st_union() %>%
+  st_sf(geometry = .)
+```
+
+```{r}
+leaflet() %>%
+  addProviderTiles(providers$OpenStreetMap) %>%
+  addPolygons(data = st_transform(bus_route_buffer, 4326),
+              color = "#004C73", fillColor = "#0072B2",
+              weight = 2, opacity = 0.9, fillOpacity = 0.25,
+              group = "Bus-route buffer") %>%
+  addPolygons(data = st_transform(bus_stop_buffer, 4326),
+              color = "#A50026", fillColor = "#F4A3A3",
+              weight = 2, opacity = 0.9, fillOpacity = 0.35,
+              group = "Bus-stop buffer") %>%
+  addLayersControl(overlayGroups = c("Bus-route buffer", "Bus-stop buffer"),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  addLegend(position = "bottomright",
+            colors = c("#0072B2", "#D73027"),
+            labels = c("Bus-route buffer", "Bus-stop buffer"),
+            title = "400-meter buffers")
+```
+
+In most areas, the bus-stop buffer closely covers the bus-route buffer because stops are spaced along the routes. Coverage is noticeably weaker where routes travel on higher-order or limited-access roads, including I-20, I-75, I-85, and GA-400, where buses may travel long distances without stopping. A route buffer can therefore overstate geographic access by treating every point along a route as a potential boarding location. Because riders can board only at designated stops, the bus-stop buffer is the more appropriate measure for the analysis below.
+
+## Step 3: Intersect the buffer with Census Tracts
+
+We will use `tidycensus` package again to download Census data at Tract-level.
+
+> Look up the codes with `tidycensus::load_variables(2024, "acs5")`.
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+# Get American Community Survey
+acs <- tidycensus::get_acs(geography = "tract",
+                   variables = c("hhinc" = ????, # median household income
+                                 "total_hh" = ????, # household total
+                                 "no_car_hh" = ????), # household without car
+                   year = 2024,
+                   output = "wide",
+                   state = "GA",
+                   county = c("Fulton", "DeKalb", "Clayton"),
+                   geometry = TRUE) 
+```
+
+We first project the Census tracts to the same CRS as the buffers. `st_area()` returns areas with units; `units::drop_units()` removes the units after calculation so we can work with numeric areas in square meters. Intersected areas below use the same CRS and units.
+
+> Divide households without a vehicle by total households.
+
+```{r, out.width="100%"}
+# Cleaning Census data
+acs <- acs %>%
+  rename(hhinc = hhincE, total_hh = total_hhE, no_car_hh = no_car_hhE) %>% # you may not need this line
+  select(GEOID, hhinc, total_hh, no_car_hh) %>% 
+  st_transform(crs = st_crs(bus_stop_buffer)) %>%
+  mutate(pct_no_car = ???? / ????) %>% 
+  # Calculate area of the Census Tract polygons
+  mutate(area = st_area(.) %>% units::drop_units()) %>% 
+  select(GEOID, hhinc, pct_no_car, area)
+```
+
+Now map the results.
+
+```{r}
+pal1 <- colorNumeric(palette = "Blues", domain = acs$hhinc)
+
+# Mapping
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(group = "ACS",
+              data = acs %>% st_transform(crs = 4326), 
+              color = "#666666", 
+              fillColor = ~pal1(hhinc), 
+              fillOpacity = 0.65,
+              opacity = 0.7,
+              weight = 0.7, 
+              popup = leafpop::popupTable(round(st_drop_geometry(acs[,c("hhinc", "pct_no_car")]),2))) %>% 
+  addPolygons(group = "MARTA",
+              data = bus_stop_buffer %>% 
+                st_transform(crs = 4326), 
+              color = "#A50026",
+              fillColor = "#F4A3A3",
+              fillOpacity = 0.25,
+              weight = 2,
+              opacity = 0.9) %>% 
+  addLayersControl(
+    overlayGroups = c("ACS", "MARTA"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+```
+
+Then we merge the Census data and the buffers from the GTFS. This requires `st_intersection()`, not `st_join()`, because we want to 'cut' the Census polygons by the shape of GTFS buffers so that we will be able to calculate the area of the intersection.
+
+Notice that the output from `st_intersection()` can be different from the input. While `st_join` returns the same geometry as the input data (although the same geometry can be duplicated), `st_intersection()` directly edits the geometry (see the image below).
+
+```{r, echo=FALSE}
+knitr::include_graphics("https://postgis.net/workshops/postgis-intro/_images/intersection.jpg")
+```
+
+```{r}
+# Intersect buffer with tract 
+buffer_intersect_tract <- acs %>% 
+  # Unify the CRS
+  st_transform(crs = st_crs(bus_stop_buffer)) %>% 
+  # Intersection
+  ????(bus_stop_buffer)
+```
+
+```{r}
+# Visualize
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(data = acs %>% st_transform(crs = 4326),
+              fillOpacity = 0.08, color = "#4D4D4D", opacity = 0.7,
+              weight = 0.8, group = 'Census') %>% 
+  addPolygons(data = bus_stop_buffer %>% st_transform(crs = 4326),
+              fillColor = "#F4A3A3", fillOpacity = 0.2,
+              color = "#A50026", opacity = 0.9,
+              weight = 1.5, group = 'GTFS') %>% 
+  addPolygons(data = buffer_intersect_tract %>% st_transform(crs = 4326), group = "Intersection",
+              fillColor = "#0072B2", fillOpacity = 0.75,
+              weight = 1, opacity = 0.8, color = "#004C73") %>%     # leaflet takes 4326
+  addLayersControl(overlayGroups = c("Census", "GTFS", "Intersection"), options = layersControlOptions(collapsed = FALSE))
+
+```
+
+## Step 4. Calculate the proportion of each Census Tract that are within the buffers.
+
+Finally, we need to calculate the proportion of each Census Tract that overlaps with the GTFS buffers. We will need to know the (1) total area of Census Tracts, which we calculated above and (2) the area of the intersected polygons. We will then divide the intersected polygons' area by the total area and put that into a column named `pct_served`.
+
+> Divide the overlapping area by the original tract area. <br>
+> Choose the join that keeps every tract from the first table, including those without coverage. <br>
+> What coverage value should a tract with no overlap receive? Replace its missing value with that number.
+
+```{r}
+# Intersected area
+buffer_intersect_tract <- buffer_intersect_tract %>% 
+  mutate(subarea = units::drop_units(st_area(.)),
+         pct_served = ???? / ????) %>% 
+  # Back to GCS
+  st_transform(crs = 4326)
+
+# Joining the intersected information back to the original Census Data.
+# This is needed because we may have lost a few polygons during intersection.
+buffer_by_tract <- acs %>% 
+  # In left_join(A, B), B must be non-sf object.
+  ????(buffer_intersect_tract %>% 
+              select(GEOID, pct_served) %>% 
+              st_set_geometry(NULL),
+            by = "GEOID") %>% 
+  # Census Tracts that do not overlap with the GTFS buffer would have NA in pct_served column.
+  mutate(pct_served = replace_na(pct_served, 0))
+```
+
+Now map the results.
+
+```{r}
+# Map
+atlanta_boundary <- tigris::places(state = "GA", year = 2024,
+                                   cb = TRUE, class = "sf",
+                                   progress_bar = FALSE) %>%
+  filter(NAME == "Atlanta") %>%
+  st_transform(4326)
+
+pal_serv <- colorNumeric(palette = "Spectral", domain = buffer_by_tract$pct_served, reverse = TRUE)
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(data = buffer_by_tract %>% st_transform(crs = 4326), 
+              fillColor = ~pal_serv(pct_served), fillOpacity = 0.78, 
+              color = "#4D4D4D", opacity = 0.5, 
+              weight = 0.8) %>% 
+  addPolygons(data = atlanta_boundary, fill = FALSE,
+              color = "#111111", weight = 2, opacity = 0.9,
+              label = ~NAME) %>%
+  addLegend("bottomright",
+            pal = pal_serv,
+            values = buffer_by_tract$pct_served,
+            title = "Proportion of tract area<br>within 400 m of bus stops") 
+```
+
+# Exploring Equity Implications
+
+Do tracts with lower incomes or more households without vehicles have greater bus-stop coverage? We'll use scatterplots and correlations to explore this.
+
+Median household income and the proportion of households without vehicles help us identify areas where residents may have fewer transportation options. They do not tell us whether individual residents rely on transit. We are comparing the 2024 ACS 5-year estimates with the live GTFS feed, so technically the two sources describe different periods.
+
+## Scatter plots
+Let's put the two scatterplots side by side using `facet_wrap()`, as we did in the previous module. We'll first use `pivot_longer()` to collect the variable names in one column and their values in another. Each variable will appear in a separate panel. Also, notice how `as_labeller()` gives each panel a readable title.
+
+Examine the direction, strength, and shape of each relationship, including outliers. Results may change as the live GTFS feed changes.
+
+```{r}
+equity_data <- buffer_by_tract %>%
+  filter(!is.na(hhinc), hhinc > 0, is.finite(pct_no_car))
+
+# Readable plot title  
+var_name <- c(
+  'hhinc'="Median annual household income ($)",
+  'pct_no_car'="Proportion of households without a vehicle"
+)
+
+equity_data %>% 
+  pivot_longer(cols = c('hhinc', 'pct_no_car'), names_to = "variable", values_to = "value") %>% 
+  ggplot(aes(x = pct_served, y = value)) +
+  facet_wrap(~variable, scales = "free_y", labeller = as_labeller(var_name), ncol = 2) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = FALSE, color="red") +
+  labs(x = "\nProportion of tract area within 400 m of bus stops") +
+  theme_bw()
+```
+
+## Correlation analysis
+Pearson correlation measures the direction and strength of a linear relationship. Use `cor.test()` to calculate the coefficient and its confidence interval and p-value. Nearby tracts may share characteristics, which can affect the usual significance tests; treat the results as exploratory.
+
+Notice that the code below shows two ways to perform the same task. Feel free to use whichever syntax you like.
+
+```{r}
+## Correlation analysis
+# Syntax 1: not using pipe
+cor.test(equity_data$pct_served, 
+         equity_data$hhinc)
+
+# Syntax 2: using pipe and 'with'
+equity_data %>%
+  with(cor.test(pct_served, hhinc))
+```
+
+```{r}
+equity_data %>%
+  with(cor.test(pct_served, pct_no_car))
+```
+What do your coefficients show? A negative income correlation means coverage tends to be greater in lower-income tracts. A positive correlation with households without vehicles means coverage tends to be greater where more households lack a vehicle.
+
+Would those patterns be enough to call the service equitable? What would you need to know about frequency, fares, reliability, or the destinations residents can reach?
+
+# Counting Departures at Bus Stops
+
+Proximity to a bus stop does not tell us how often buses arrive. To capture service frequency, we count scheduled bus departures at each stop during the morning time window.
+
+We count scheduled departures from 7 AM to 10 AM on `r format(analysis_date, "%B %d, %Y")`, selecting service active on that date rather than combining weekday and weekend schedules. These are scheduled departures, not observed service. We'll use `get_stop_frequency()` to count these departures.
+
+> Reuse `analysis_date` from the start of the lab. <br>
+> The time arguments take seconds after midnight: multiply the starting and ending hours by 3,600.
+
+```{r}
+# Select service active on one date, including calendar exceptions.
+gtfs_day <- tidytransit::filter_feed_by_date(gtfs, extract_date = ????)
+# Keep only bus trips active on the selected date.
+gtfs_day$trips <- gtfs_day$trips %>%
+  semi_join(bus_routes, by = "route_id")
+gtfs_day$stop_times <- gtfs_day$stop_times %>%
+  semi_join(gtfs_day$trips, by = "trip_id")
+service_ids <- unique(gtfs_day$trips$service_id)
+if (length(service_ids) == 0) {
+  stop("No bus service found for analysis_date. Choose a date covered by the live feed.")
+}
+stop_freq <- get_stop_frequency(gtfs_day, 
+                                start_time = ????, # input unit is in second. So 7*3600 is 7AM 
+                                end_time = ????, 
+                                service_ids = service_ids, 
+                                by_route = TRUE) %>%
+  # Combine route/direction/service groups into one count per stop.
+  group_by(stop_id) %>%
+  summarise(n_departures = sum(n_departures), .groups = "drop")
+stop_freq_sf <- bus_stops %>% 
+  left_join(stop_freq, by="stop_id") %>% 
+  filter(!is.na(n_departures))
+```
+
+Now map the results.
+
+```{r}
+departure_palette <- c("#440154", "#3B528B", "#21918C", "#5DC863", "#FDE725")
+departure_breaks <- unique(quantile(stop_freq_sf$n_departures,
+                                    probs = seq(0, 1, 0.2),
+                                    na.rm = TRUE))
+
+freq_pal <- colorBin(
+  palette = departure_palette,
+  domain = stop_freq_sf$n_departures,
+  bins = departure_breaks,
+  pretty = FALSE
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addCircleMarkers(data = stop_freq_sf,
+                   radius = 2,
+                   fillColor = ~freq_pal(n_departures),
+                   fillOpacity = 0.9,
+                   color = "#333333",
+                   opacity = 0.8,
+                   weight = 0.5,
+                   stroke = TRUE,
+                   popup = ~str_c(stop_name, ": ", n_departures)) %>% 
+  addPolygons(data = atlanta_boundary, fill = FALSE,
+              color = "#111111", weight = 2, opacity = 0.9,
+              label = ~NAME) %>%
+  addLegend(position = "bottomright",
+            pal = freq_pal,
+            values = stop_freq_sf$n_departures,
+            title = "Count of bus departures<br>7 AM to 10 AM<br>(quantile classes)")
+```
+
+## Summarizing Departures by Census Tract
+
+We use a spatial join to assign stops to tracts. The sum counts bus departures across stops; the same vehicle trip may be counted at multiple stops. It is not a count of unique trips or a population-adjusted measure of access.
+
+> Use the `sf` spatial join function to attach stop information to tracts based on location. We want to keep the tract boundaries here, rather than cut polygons as we did for the buffers.
+
+```{r}
+stop_tract <- acs %>% 
+  st_transform(crs = 4326) %>% 
+  ????(stop_freq_sf) %>% 
+  group_by(GEOID) %>% 
+  summarise(avg_n_departures = mean(n_departures, na.rm = T),
+            sum_n_departures = sum(n_departures, na.rm = T),
+            hhinc = mean(hhinc, na.rm = T),
+            pct_no_car = mean(pct_no_car, na.rm = T))
+
+knitr::kable(head(stop_tract))
+```
+
+```{r}
+sum_n_depart <- colorBin(
+  palette = departure_palette,
+  domain = stop_tract$sum_n_departures,
+  bins = 5,
+  pretty = TRUE
+)
+
+sum_depart_map <- leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addPolygons(data = stop_tract, 
+              fillColor = sum_n_depart(stop_tract$sum_n_departures),
+              fillOpacity = 0.8,
+              color = 'grey',
+              weight = 0.7, 
+              popup = paste0("ID: ", stop_tract$GEOID, ", Value: ",
+                             stop_tract$sum_n_departures)) %>% 
+  addPolygons(data = atlanta_boundary, fill = FALSE,
+              color = "#111111", weight = 2, opacity = 0.9,
+              label = ~NAME) %>%
+  addLegend(position = "bottomright",
+            values = stop_tract$sum_n_departures,
+            pal = sum_n_depart,
+            title = "Summed bus departures at stops<br>7 AM to 10 AM")
+
+sum_depart_map
+
+message(str_c("there are ", sum(is.na(stop_tract$sum_n_departures)), " NAs in n_departures"))
+```
+
+Notice in the code chunk below that we log-transform the summed departure count because its distribution is right-skewed: a few tracts have many more departures than most. Taking the log compresses those large counts and makes differences among tracts with fewer departures easier to see.
+
+> Why do we add 1 in `log(sum_n_departures + 1)`? It is a common trick to handle zero counts because `log(0)` is undefined. Adding 1 lets us include tracts with zero departures, which become `log(1) = 0`.
+
+```{r fig.align="center", out.width="100%", fig.height=10}
+# Is there any correlation between SES and service area?
+stop_tract_plot <- stop_tract %>% 
+  mutate(n_departure_log = log(sum_n_departures + 1)) %>%
+  pivot_longer(cols = c('hhinc', 'pct_no_car'), 
+               names_to = "variable", values_to = "value") %>%
+  mutate(variable = factor(variable, 
+                           levels = c('hhinc', 'pct_no_car'),
+                           labels = c('Median annual household income ($)',
+                                      'Proportion of households without a vehicle')))
+
+departure_count <- stop_tract_plot %>% 
+  ggplot(aes(x = n_departure_log, y = value)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~variable, scales = "free_y") +
+  labs(x = "Summed bus departures at stops, 7 AM to 10 AM (log-transformed)",
+       y = NULL,
+       title = "Scheduled bus departures and neighborhood characteristics") +
+  theme_bw() 
+```
+
+```{r}
+plotly::ggplotly(departure_count)
+```
+Does departure frequency show the same relationship with income and vehicle availability as bus-stop coverage? What might explain the difference?
+
+  
+# Calculate Travel Times from One Station to Reachable Stops 
+
+We'll use `travel_times()` to calculate travel times from Midtown to reachable stops. Run `?tidytransit::travel_times` to check its arguments. The two required inputs are `filtered_stop_times` and `stop_name`; the other arguments control the time window, transfers, and output.
+
+Different stops sometimes share a name. `travel_times()` checks how far apart those stops are. We'll give separate names to stops more than 300 meters (or about 1000 feet) apart so the function can distinguish them.
+
+Before calculating travel times, we will:
+
+1. Identify repeated stop names and measure the distances between those stops.
+2. Give separate names to stops more than 300 meters apart.
+3. Create a transfers table with `gtfsrouter::gtfs_transfer_table()` to represent walking connections between nearby stops. We will connect stops within **200** meters of each other and assign each transfer a minimum **120** seconds (2 minutes). This transfer duration is included in the calculated journey time.
+4. Use `filter_stop_times()` to select the service date and the morning time window from **7 AM to 10 AM**. When calculating travel times, we will allow at most **1** transfer.
+
+Then we'll pass the filtered schedule and the origin stop name to `travel_times()`.
+
+> Use the duplicate-name distance given above in both `filter()` and `stop_dist_check`. <br> 
+> Reuse `analysis_date` so routing and departure counts describe the same day. <br>
+> The time inputs should be in seconds, just as in the earlier exercise.
+
+```{r message=FALSE}
+# Step 1: Identify repeated names with stops more than 300 meters apart.
+stop_dist <- stop_group_distances(gtfs_sf$stops, by='stop_name') %>% 
+  filter(dist_max > ????)
+
+# Step 2: Give distant stops separate names.
+gtfs$stops <- gtfs$stops %>% 
+  group_by(stop_name) %>% 
+  mutate(stop_name = case_when(stop_name %in% stop_dist$stop_name ~ paste0(stop_name, " (", seq(1,n()), ")"),
+                               TRUE ~ stop_name)) 
+
+# Step 3: Create walking transfers between nearby stops.
+gtfs <- gtfsrouter::gtfs_transfer_table(gtfs, 
+                                        d_limit = ????, # Maximum distance limit for transfers in meters
+                                        min_transfer_time = ????) # minimum transfer duration in seconds
+# Step 4: Select the service date and morning time window.
+am_stop_time <- filter_stop_times(gtfs_obj = gtfs, 
+                                  extract_date = ????, # must be covered by the live feed
+                                  min_departure_time = ????,
+                                  max_arrival_time = ????)
+
+# Calculate travel times from the origin stop.
+trvt <- travel_times(filtered_stop_times = am_stop_time,
+                     stop_name = "MIDTOWN STATION",
+                     time_range = 3*3600, # Consider departures across the full 7-10AM window
+                     arrival = FALSE, # if TRUE, all journeys end at Midtown station.
+                     max_transfers = ????,
+                     return_coords = TRUE,
+                     stop_dist_check = ????)
+```
+
+```{r}
+# ..and visualize the output
+travel_time_palette <- c("#0D0887", "#7E03A8", "#CC4778", "#F89540", "#F0F921")
+
+trvt_pal <- colorBin(
+  palette = rev(travel_time_palette),
+  domain = trvt$travel_time / 60,
+  bins = 5,
+  pretty = TRUE
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  addCircles(data = trvt %>% 
+               st_as_sf(coords = c("to_stop_lon", "to_stop_lat"), 
+                        crs = 4326), # converting trvt into sf object on the fly.
+             radius = 400,
+             fillColor = ~trvt_pal(travel_time / 60), # Define color
+             stroke = TRUE,
+             color = "#333333",
+             opacity = 0.6,
+             weight = 0.5,
+             fillOpacity = 0.7, # Transparency
+             popup = paste0("Travel Time from <br> <strong> MIDTOWN: ",
+                            round(trvt$travel_time/60, 2), 
+                            " minutes </strong>") %>% # Define what's displayed on popup
+               lapply(htmltools::HTML)) %>%
+  addPolygons(data = atlanta_boundary, fill = FALSE,
+              color = "#111111", weight = 2, opacity = 0.9,
+              label = ~NAME) %>%
+  addLegend(position = "bottomright",
+            pal = trvt_pal,
+            values = trvt$travel_time / 60,
+            title = "Travel time from Midtown<br>(minutes)")
+```
+
+Among reachable stops returned under our selected date, time window, and transfer limit, the mean travel time from Midtown Station is `r round(mean(trvt$travel_time)/60,1)` minutes. This is an unweighted average across returned destinations, not a typical rider's travel time. Unreachable stops are excluded.
+
+```{r}
+# Average time to get to other stations
+print(str_c("On average, it takes ", 
+            round(mean(trvt$travel_time)/60,1), 
+            " minutes from Midtown Station to reachable stops returned under these settings."))
+```
+
+> How might the mean travel time and the set of reachable stops change if we allowed up to two transfers? What changes would you expect from adjusting the departure time window, maximum transfer distance, or service date (e.g., weekday -> weekend)?
