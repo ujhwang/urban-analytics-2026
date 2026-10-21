@@ -1,0 +1,765 @@
+---
+title: "OpenStreetMap"
+author: 'Uijeong "UJ" Hwang'
+date: '2026-10-21'
+output: 
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+    code_folding: show
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+# Import required packages
+library(tidyverse)
+library(magrittr)
+library(tmap)
+library(sf)
+library(leaflet)
+library(sfnetworks)
+library(tidygraph)
+library(osmdata)
+```
+
+# What is OpenStreetMap
+
+OpenStreetMap (OSM) is a "collaborative project to create a free editable geographic database of the world" ([Wikipedia](https://en.wikipedia.org/wiki/OpenStreetMap)). OSM data is open, freely available, and widely used in academic and applied spatial analysis. Because it is maintained collaboratively, its coverage, completeness, and accuracy can vary by location and feature type, so analysts should evaluate whether it is suitable for their specific use case. It provides a variety of data types, ranging from raster map tiles to vector representations of geographic features.
+In this lab, we will focus on the vector data.
+
+**Overview**
+
+In this exercise, you will learn how to:
+
+- Download and clean OSM vector data.
+- Convert cleaned data into a network.
+- Calculate centrality measures.
+- Perform route finding (shortest path analysis).
+
+## Downloading the data
+
+We will use the `osmdata` package to download OSM data in `sf` format. The `osmdata` package connects to **Overpass**, a web API that allows users to query and download specific subsets of OSM data based on filters and geographic areas. All Overpass queries begin with a **bounding box**.
+
+To define the bounding box, we will use the `nominatimlite` package, which relies on the **Nominatim API**—a geocoding service that powers the official OSM website. In previous exercises, we obtained city boundaries from the Census using the `tigris` package, but since we are focusing on OSM in this exercise, we will retrieve the city boundary from OSM instead.
+
+```{r}
+# Get bounding box coordinates for Atlanta
+atl <- nominatimlite::geo_lite_sf('Atlanta, GA', points_only = ????) # We want the boundary, not point
+atl_bb <- atl %>% st_bbox()
+```
+
+
+```{r}
+## Plot-- 
+atl_bb_sf <- atl_bb %>% st_as_sfc()
+
+tmap_mode('view')
+tm_shape(atl_bb_sf) + tm_borders("red") +
+  tm_shape(atl) + tm_polygons()
+```
+
+### OSM features
+
+[OSM wiki](https://wiki.openstreetmap.org/wiki/Map_features) explains that OSM represents physical features on the ground using **tags** attached to its basic data structures (i.e., nodes, ways, and relations).
+
+Each feature can have an almost unlimited number of attributes (i.e., tags), but many are standardized through widely accepted key–value pairs defined by the OSM community.
+
+A helpful way to think about this is that the key represents a category (e.g., type of feature), while the value represents a specific entry within that category.
+
+Some of the most commonly used keys include *amenity*, *building*, *highway*, and *shop*.
+Each key can take on multiple values. For example, the key *amenity* may include values such as `school`, `hospital`, `bank`, or `cinema`.
+
+For the key *highway* (which refers to roads in OSM), typical values include:
+
+-   `motorway`
+-   `trunk`
+-   `primary`
+-   `secondary`
+-   `tertiary`
+-   `residential`
+-   and various connector types such as `motorway_link`, `trunk_link`, `primary_link`
+
+For the complete list of key–value pairs, refer to the [OSM wiki](https://wiki.openstreetmap.org/). 
+
+If you want to retrieve all possible values associated with a given key (for example, `highway`), you can use the function `available_tags("highway")`.
+
+However, note that downloading all available tags can produce a very large dataset and significantly slow down processing.
+In this exercise, we will download selected road types using the `highway` key and convert the results into `sf` format.
+
+The last function in the code below, `osm_poly2line()`, is included because: *"Street networks downloaded with `add_osm_object(key = "highway")` will store any circular highways in `osm_polygons`. This function combines those with the `osm_lines` component to yield a single sf `data.frame` of all highways, whether polygonal or not."* ([source](https://rdrr.io/cran/osmdata/man/osm_poly2line.html)).
+
+> If you are having trouble running the code below, see **Appendix: Overpass API troubleshooting** at the bottom of this document.
+
+```{r}
+set_overpass_url("https://overpass-api.de/api/interpreter")
+```
+
+```{r}
+# Get OSM road data
+osm_road <- opq(bbox = ????, timeout = 180) %>%
+  add_osm_feature(key = ????, 
+                  value = c("motorway", "motorway_link",
+                            "trunk", "trunk_link", 
+                            "primary", "primary_link",
+                            "secondary", "secondary_link",
+                            "tertiary", 
+                            "residential")) %>%
+  osmdata_sf() %>% 
+  osm_poly2line()
+
+names(osm_road)
+```
+
+
+The object `osm_road` is a list containing multiple elements, including `bbox`, `osm_points`, `osm_lines`, and `osm_polygons`. We can extract the `osm_lines` component to inspect the road network data.
+
+```{r}
+## Plot--
+tmap_mode('plot')
+tm_shape(osm_road$osm_lines) + tm_lines(col = "highway")
+```
+
+The code below shows the proportion of each road type. The `residential` tag makes up more than half of all features.
+
+```{r}
+# Breakdown of highway types
+round(prop.table(table(osm_road$osm_lines$highway)) * 100, 1)
+```
+
+## Defining a custom bounding box
+
+Displaying the entire Atlanta network we downloaded can slow down your R environment. For this lab exercise (so that everyone can follow along smoothly), we'll limit our analysis to a smaller area by defining a custom bounding box. This approach is also useful when you want to focus on a specific area of interest that doesn't align neatly with administrative boundaries or commonly used regions.
+
+You can either use the bounding box below or define your own within the Atlanta area we downloaded.
+
+To create a bounding box, we will specify two points: one at the lower-left corner and another at the upper-right corner. You can obtain the coordinates of these points using Google Maps — right-click on a location, and copy the coordinates.
+
+> Note that Google Maps provides coordinates in **Y, X (latitude, longitude)** order, but in R we will need to input them as **X, Y (longitude, latitude)**.
+
+We will store these two points in objects `bb_p1` and `bb_p2`.
+
+```{r}
+# bb_p1 is lower left corner, bb_p2 is the upper right corner
+bb_p1 <- c(-84.42138164090896, 33.729724924925925)
+bb_p2 <- c( -84.34372362786227, 33.79761117884929)
+
+# Custom BB
+my_bb <- c(st_point(bb_p1) %>% st_sfc(crs = 4326), 
+           st_point(bb_p2) %>% st_sfc(crs = 4326)) %>% st_bbox()
+
+# Custom BB to sf
+my_bb_sf <- my_bb %>% st_as_sfc()
+```
+
+```{r}
+# Extract a smaller network for exercise purpose
+osm_small <- osm_road$osm_lines[????,] %>% select(osm_id, highway)
+```
+
+
+```{r}
+## Plot--
+tmap_mode('view')
+tm_shape(atl_bb_sf) + tm_borders(col = "black") +  # Black = larger bbox
+  tm_shape(my_bb_sf) + tm_borders(col = "red") +  # Red = smaller bbox
+  tm_shape(osm_small) + tm_lines(col = "black") # Black line = small network
+```
+
+# Converting OSM data into network using `sfnetworks` package
+
+Now that we have the OSM network geometry, we need to address several issues before it can be used for analysis. The `sfnetworks` package allows us to both clean the data and perform network analysis.
+
+We can pass the `osm_small` object to the function `as_sfnetwork()` to convert it into an `sfnetwork` object.
+
+> The `sf` object passed to `as_sfnetwork()` must be of type *LINESTRING*.
+
+By default, `as_sfnetwork()` creates a directed network, but for simplicity, we will set the `directed` argument to `FALSE`. This is a simplified distance exercise: it does not enforce one-way streets, turn restrictions, or access rules, so the results are not realistic driving directions.
+
+
+The resulting object, `net`, has two components: **nodes** and **edges**.  
+
+- The nodes represent intersections or endpoints in the network.
+- The edges represent the connecting roads.
+
+Notice that node data is denoted as *active*. In `sfnetwork` objects, nodes and edges are separate tables, and you can control which one you manipulate. For example, when using dplyr verbs such as `mutate()`, you can choose whether to apply the operation to nodes or edges by first activating the component you want to modify.
+
+```{r}
+# Converting the line component of OSM data into a network
+net <- sfnetworks::????(osm_small, directed = FALSE)
+print(net)
+print(paste0('Which one is active?: ', sfnetworks::active(net)))
+```
+
+
+You can also extract nodes and edges as separate `sf` objects using the `st_as_sf()` function.
+For example, to extract nodes or edges and store them separately, you can use either of the following approaches:  
+
+- `net %>% activate("nodes") %>% st_as_sf()`
+- `net %>% st_as_sf("nodes")`
+
+Both approaches produce the same result. This step is necessary because some functions, such as `leaflet()`, require `sf` objects rather than `sfnetwork` objects. In the example below, we extract nodes and edges separately and pass them to `leaflet()`. The purple points are nodes and gray lines are edges.
+
+```{r}
+## Plot--
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  setView((bb_p1[1]+bb_p2[1])/2, (bb_p1[2]+bb_p2[2])/2, zoom = 13) %>% # Center the map on the midpoint of the custom bounding box
+  addPolylines(data = net %>% st_as_sf('edges') %>% st_transform(4326), 
+               col = "#424242", 
+               weight = 2, 
+               opacity = 0.65, 
+               popup = net %>% st_as_sf('edges') %>% pull(osm_id)) %>% 
+    addCircleMarkers(data = net %>% st_as_sf('nodes') %>% st_transform(4326),
+               fillColor = "#6A1B9A", color = "white", weight = 1,
+               stroke = TRUE, radius = 2.5, fillOpacity = 1) 
+```
+
+# Cleaning the network
+
+## Simplifying the network
+
+> This content is heavily based on [this sfnetwork tutorial](https://luukvdmeer.github.io/sfnetworks/articles/sfn02_preprocess_clean.html)
+
+Network data may contain edges that connect the same pair of nodes, called multiple edges. In a road network, these may represent parallel roads or separate carriageways. There can also be loops that start and end at the same node (e.g., cul-de-sac). Removing parallel edges and loops simplifies the network, but may remove real road connections.  
+
+- Multiple edges can be detected using `edge_is_multiple()`.
+- Loops can be detected using `edge_is_loop()`.
+
+When removing multiple edges with the functions shown below, the first edge in each set is preserved, and all others are discarded. By arranging the order of edges within each set, you can control which edge is retained. This simplification approach means that if multiple edges have different attributes, all attribute information except that of the preserved edge will be lost.
+
+In cases where you want to retain attribute information, you can merge the edges. The resulting edge will use the geometry of the first edge in the set, but its attributes will be a summary of all edges in that set. The function `to_spatial_simple()` performs this type of merging (though it is not used in this document).
+
+```{r}
+# Let's simplify our network
+simple_net <- net %>%
+  activate("edges") %>%
+  filter(!????) %>% # remove multiple edges
+  filter(!????) # remove loops
+
+# Because the difference is not really discernible, we just print out the differences in the edge count.
+message(str_c("Before simplification, there were ", net %>% st_as_sf("edges") %>% nrow(), " edges. \n",
+            "After simplification, there are ", simple_net %>% st_as_sf("edges") %>% nrow(), " edges."))
+```
+
+
+## Subdivide edges
+
+**Why subdivide?**
+
+When the `as_sfnetwork()` function converts `sf` LINESTRING objects, nodes are defined only at the endpoints of each linestring.
+
+If you zoom into an area like Midtown on the map above, you'll notice many edges that cross each other but do not have nodes at the crossings. The absence of nodes at these crossings would be valid if the two roads were, for example, bridges at different elevations. We should not assume every crossing is an intersection. Bridges and tunnels may cross without connecting.
+
+We can use `to_spatial_subdivision()` to split edges at shared geometry vertices. It does not connect every geometric crossing or determine whether roads are at the same elevation.
+
+> "Construct a subdivision of the network by subdividing edges at each interior point that is equal to any other interior or boundary point in the edges table. Interior points in this sense are those points that are included in their linestring geometry feature but are not endpoints of it, while boundary points are the endpoints of the linestrings. The network is reconstructed after subdivision such that edges are connected at the points of subdivision." ([source](https://luukvdmeer.github.io/sfnetworks/reference/spatial_morphers.html))
+
+The `to_spatial_subdivision()` function is part of a set of functions called [spatial
+morphers](https://luukvdmeer.github.io/sfnetworks/reference/spatial_morphers.html). Morphers are rooted in `tidygraph`, which allows you to temporarily "morph" the topology of the original network, perform operations on the morphed network, and then merge the results back using `unmorph()`. For more details, see [sfnetworks morphers vignette](https://cran.r-project.org/web/packages/sfnetworks/vignettes/sfn05_morphers.html). It is by design that morphers are used not directly but by passing them to `morph()` function.
+
+Although morphing is usually temporary, we can make the changes permanent by using the `convert()` function instead of `morph()`. Since we want to create nodes at intersections and retain them in our network, we will use `convert()` in this lab.
+
+```{r}
+# # Using spatial morpher
+subdiv_net <- convert(simple_net, sfnetworks::????)
+```
+
+
+```{r}
+# Below is done for visualization purpose
+subdiv_net <- subdiv_net %>% 
+  activate("nodes") %>% 
+  mutate(custom_id = seq(1, subdiv_net %>% st_as_sf("nodes") %>% nrow()),
+         is.new = case_when(is.na(.tidygraph_node_index) ~ "new nodes",
+                            TRUE ~ "existing nodes"),
+         is.new = factor(is.new)) 
+
+## Plot--
+subdiv_pal <- colorFactor(palette = c("#6A1B9A", "#74ff4a"), levels = c("existing nodes", "new nodes"))
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  setView((bb_p1[1]+bb_p2[1])/2, (bb_p1[2]+bb_p2[2])/2, zoom = 13) %>%
+  addPolylines(data = subdiv_net %>% 
+                 st_as_sf('edges') %>% 
+                 st_transform(4326), 
+               col = "#424242", weight = 2, opacity = 0.65) %>% 
+  addCircleMarkers(data = subdiv_net %>% 
+                     st_as_sf('nodes') %>% 
+                     st_transform(4326),
+                   fillColor = ~subdiv_pal(is.new), color = "black", weight = 1,
+                   stroke = TRUE, radius = 2.5, fillOpacity = 1) %>% 
+  addLegend(position = "bottomright", pal = subdiv_pal, values = subdiv_net %>% st_as_sf("nodes") %>% pull(is.new)) 
+
+```
+
+## Delete pseudo nodes
+
+In a network, some nodes along edges are unnecessary and are referred to as pseudo nodes.  
+
+- In directed networks, pseudo nodes are nodes with only one incoming and one outgoing edge.
+- In undirected networks, pseudo nodes are nodes with exactly two incident edges.
+
+`to_spatial_smooth()` joins edges through pseudo nodes while preserving connectivity. By default, it does not require their attributes to match. We use `require_equal = "highway"` to retain changes in road class; other attribute boundaries may still be lost.
+
+```{r}
+# Using spatial morpher
+smoothed_net <- convert(subdiv_net, sfnetworks::????, require_equal = "highway")
+```
+
+
+```{r}
+# Below is done for visualization purpose
+# Extract removed points for mapping purposes
+removed <- setdiff(subdiv_net %>% st_as_sf('nodes') %>% pull(custom_id), 
+                   smoothed_net %>% st_as_sf('nodes') %>% pull(custom_id))
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  setView((bb_p1[1]+bb_p2[1])/2, (bb_p1[2]+bb_p2[2])/2, zoom = 13) %>%
+  addPolylines(data = smoothed_net %>% 
+                 st_as_sf('edges') %>% 
+                 st_transform(4326), 
+               col = "#424242", weight = 2, opacity = 0.65, 
+               popup = smoothed_net %>% 
+                 st_as_sf('edges') %>% 
+                 rownames()) %>% 
+    addCircleMarkers(data = smoothed_net %>% 
+                       st_as_sf('nodes') %>% 
+                       st_transform(4326),
+                     fillColor = "#6A1B9A", color = "white", weight = 1,
+                     stroke = TRUE, radius = 2.5, fillOpacity = 1, group = "kept") %>% 
+    addCircleMarkers(data = subdiv_net %>% 
+                       st_as_sf("nodes") %>%
+                       filter(custom_id %in% removed) %>% 
+                       st_transform(4326),
+               fillColor = "#f5a002", color = "black", weight = 1,
+               stroke = TRUE, radius = 2.5, fillOpacity = 1, group = "removed") %>% 
+  addControl(html = htmltools::HTML("<b>Orange points denote removed nodes</b>"), position = "bottomright") %>% 
+  addLayersControl(overlayGroups = c("kept", "removed"))
+
+```
+
+# Calculate centrality
+
+One of the most common ways to analyze network characteristics is through centrality measures. These algorithms assign numerical values to nodes or edges based on their position within the network.
+
+There are many types of centrality measures, each capturing different aspects of a node's importance. In this lab, we will focus on betweenness centrality and degree centrality.
+
+- Betweenness measures how many shortest paths pass through a node or edge, accounting for ties between equally short paths. We use unnormalized values, not percentages, and weight paths by road length.
+- Degree is the number of edges connected to a node. Here we use unweighted degree, so each connection counts once.
+
+These measures provide complementary insights: degree centrality highlights well-connected nodes, while betweenness centrality identifies nodes that act as bridges between different parts of the network.
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/Wp-01.png)
+
+(Source: [wikipedia](https://en.wikipedia.org/wiki/Centrality))
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/centrality.JPG) (Source: [Cordeiro et al.
+(2018)](https://arxiv.org/abs/1808.02960v1))
+
+## Betweenness centrality
+
+> Calculate edge lengths with `edge_length()` and use that column as the weight for both betweenness measures. The edge values are unnormalized; `normalized = FALSE` keeps node values unnormalized too.
+
+
+```{r}
+# Calculate centrality measures
+network_char <- smoothed_net %>% 
+  activate("edges") %>%
+  mutate(weight = ????) %>% 
+  mutate(edge_bc = centrality_edge_betweenness(weights = ????, directed = F)) %>%
+  activate("nodes") %>% 
+  mutate(node_bc = centrality_betweenness(weights = weight, directed = F, normalized = F))
+```
+
+
+```{r}
+# Edge betweenness
+bet_pal_edge <- colorNumeric(palette = "inferno", 
+                             domain = network_char %>% activate("edges") %>% pull(edge_bc))
+
+# Node betweenness
+bet_pal_node <- colorNumeric(palette = "inferno", 
+                             domain = network_char %>% activate("nodes") %>% pull(node_bc))
+
+# Map
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>%
+  setView((bb_p1[1]+bb_p2[1])/2, (bb_p1[2]+bb_p2[2])/2, zoom = 13) %>%
+  addPolylines(data = network_char %>% 
+                 st_as_sf("edges") %>% 
+                 st_transform(4326), 
+               color = ~bet_pal_edge(network_char %>% st_as_sf('edges') %>% pull(edge_bc)), weight = 3, opacity = 0.9) %>% 
+  addCircles(data = network_char %>% 
+               st_as_sf("nodes") %>% 
+               st_transform(4326), 
+             fillColor = ~bet_pal_node(network_char %>% st_as_sf('nodes') %>% pull(node_bc)), stroke = F, fillOpacity = 0.9, 
+             radius = network_char %>% st_as_sf("nodes") %>% with(.$node_bc/(max(.$node_bc)/100))) # denominator to make the max value roughly equal to 100
+```
+
+## Degree centrality
+
+Intersections play an important role in various measures of the built environment. For example:  
+
+- Intersection density (the number of intersections divided by the area) is used to calculate a walkability index ([Frank et al., 2005](https://www.sciencedirect.com/science/article/pii/S0749379704003253?casa_token=kHCOrJaK25UAAAAA:KQqIuoVNIpubIKO8q8cGSzkHSGZK_b-LYi6qd5wvcXxG3cftTdhgPZ6tpLV-1yxWKCla2_F0QA)).
+- It is also applied in the well-known 5D framework ([Ewing and Cervero, 2010](https://www.tandfonline.com/doi/full/10.1080/01944361003766766)).
+
+Recall that (unweighted) degree centrality is simply the number of edges connected to each node. We identify intersections as nodes where at least three road segments meet. This includes typical T-intersections and four-way intersections while excluding dead ends and degree-two points along a road.
+
+```{r}
+intersections <- smoothed_net %>%
+  st_transform(crs = 4326) %>% 
+  activate("nodes") %>% 
+  mutate(degree = ????(weights = NULL)) %>% # get degree centrality. Try typing `tidygraph::`
+  filter(degree >= ????)
+```
+
+
+```{r}
+color_palette <- colorFactor(
+  palette = c("#FEC44F", "#FE9929", "#E34A33", "#800026"),
+  domain = intersections %>% st_as_sf("nodes") %>% .$degree
+)
+
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  setView((bb_p1[1]+bb_p2[1])/2, (bb_p1[2]+bb_p2[2])/2, zoom = 13) %>%
+  addPolylines(data = smoothed_net %>% 
+                 st_as_sf('edges') %>% 
+                 st_transform(4326), 
+               col = "#424242", weight = 2, opacity = 0.65) %>% 
+    addCircles(data = intersections %>% 
+                 st_as_sf('nodes') %>% 
+                 st_transform(4326), 
+               fillColor = ~color_palette(degree), 
+               stroke = T,
+               color = "black",
+               weight = 1,
+               radius = ~degree * 10, 
+               fillOpacity = 0.9) %>%
+  addLegend(position = "bottomright",
+            pal = color_palette,
+            values = intersections %>% st_as_sf("nodes") %>% pull(degree),
+            title = "Degree (connected edges)")
+```
+
+# Shortest path
+
+One of the most common tasks with road networks is finding a route between two points—often the shortest path. This can be easily done using the `sfnetworks` package's `st_network_paths()` function.
+
+First, you need to create `sf` objects with POINT geometry representing the origin and destination. These points do not need to lie exactly on the network; `st_network_paths()` will automatically find the nearest nodes and use them in the calculation.
+
+You can also supply multiple destinations in a single call to `st_network_paths()`, but the origin must be the same for all destinations. Pass the origin, destination(s), and the network object to the function.
+
+The output is a data frame (technically a tibble) with two columns:  
+
+- `node_paths` – sequences of nodes along each shortest path
+- `edge_paths` – sequences of edges along each shortest path
+
+The data frame will have one row per origin–destination pair. Examining its contents reveals the specific nodes and edges that make up the shortest path.
+
+> If you defined your own bounding box earlier, you may need to choose different origin and destination points within your selected network. Otherwise, the points may snap to distant boundary nodes or have no connecting path.
+
+```{r}
+# Change crs for convenience
+smoothed_net <- smoothed_net %>% st_transform(4326)
+
+# Origin
+origin_p <- nominatimlite::geo_lite_sf('Georgia Tech CRC') %>% st_geometry() # same as `pull(geometry)`
+
+# Destinations
+target_p1 <- nominatimlite::geo_lite_sf('Atlanta Botanical Garden') %>% st_geometry()
+target_p2 <- nominatimlite::geo_lite_sf('Krog Street Market') %>% st_geometry()
+
+# Get the shortest path
+paths <- ????(smoothed_net, from = ????, to = c(????, ????), type = "shortest", use_names = FALSE)
+```
+
+
+```{r}
+# Extract shortest path
+paths_sf1 <- smoothed_net %>%
+  activate("edges") %>% 
+  slice(paths$edge_paths[[1]])
+
+paths_sf2 <- smoothed_net %>%
+  activate("edges") %>% 
+  slice(paths$edge_paths[[2]])
+
+# Visualize
+leaflet() %>% 
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  setView((bb_p1[1]+bb_p2[1])/2, (bb_p1[2]+bb_p2[2])/2, zoom = 13) %>%
+  # Base network in grey
+  addPolylines(data = smoothed_net %>% 
+                 st_as_sf("edges") %>% 
+                 st_transform(4326), 
+               color = "#59636E", weight = 2, opacity = 0.55) %>% 
+  
+  # Chosen edges
+  addPolylines(data = paths_sf1 %>% 
+                 st_as_sf("edges") %>% 
+                 st_transform(4326), 
+               color = "#1764AB", weight = 4, opacity = 0.9) %>% 
+  # Chosen nodes
+  addCircles(data = smoothed_net %>% 
+               st_as_sf("nodes") %>%
+               slice(paths$node_paths[[1]]) %>% 
+               st_transform(4326), 
+             stroke = F, fillColor = "#1764AB", fillOpacity = 0.8, radius = 70) %>% 
+  
+  # Chosen edges
+  addPolylines(data = paths_sf2 %>% 
+                 st_as_sf("edges") %>% 
+                 st_transform(4326), 
+               color = "#7A3293", weight = 4, opacity = 0.9) %>% 
+  # Chosen nodes
+  addCircles(data = smoothed_net %>% 
+               st_as_sf("nodes") %>%
+               slice(paths$node_paths[[2]]) %>% 
+               st_transform(4326), 
+             stroke = F, fillColor = "#7A3293", fillOpacity = 0.8, radius = 70)
+
+```
+
+
+# Using GTFS and OSM together
+
+Although GTFS and OSM are different data sources and may seem completely separate, people in the real world frequently combine the two when navigating a city. For example, consider a **park-and-ride trip**: you might drive from home to the nearest MARTA station, park your car, and then take transit to reach your destination. To simulate such trips, we need a way to connect the two datasets.
+
+For this exercise, assume **we want to find the closest MARTA station from a given location**—not in terms of Euclidean distance, but network distance. To do this, we will:  
+
+- Calculate the shortest paths from the location to all MARTA stations that are reachable within our network.
+- Select the path with the shortest length among them.
+
+> In other words, we are finding the shortest–shortest path.
+
+Since we are only interested in rail stations, we first need to extract the relevant transit stops from the GTFS dataset.
+
+As we learned, GTFS is structured as a set of relational tables. Information about whether a transit facility is for bus or rail is contained in the `routes` table. However, the `stops` table cannot be linked directly to `routes`. To identify rail stops, we join `routes` to `trips` using `route_id`, then join `trips` to `stop_times` using `trip_id`. This gives us the `stop_id` values served by rail routes, which we can use to retain the matching records from `stops`.
+
+`stop_times` generally references the platform where a vehicle stops rather than the station as a whole. We use `parent_station` to represent each physical station once, then retain only stations within the bounding box used to download the road network. This prevents out-of-area stations from being snapped to nodes at the edge of the network.
+
+```{r}
+# Read GTFS
+transit <- tidytransit::read_gtfs("https://www.itsmarta.com/google_transit_feed/google_transit.zip") %>% 
+  tidytransit::gtfs_as_sf()
+```
+
+> Refer to the GTFS relational table structure and GTFS route-type table from the previous lab.
+
+```{r}
+# Get platform-level stop IDs served by MARTA rail routes
+rail_stop_ids <- transit$routes %>% 
+  filter(route_type == ????) %>%
+  inner_join(transit$trips, by = ????) %>% 
+  inner_join(transit$stop_times, by = ????) %>% 
+  distinct(stop_id)
+
+# Link platform-level stops to their parent stations
+rail_station_ids <- transit$stops %>%
+  semi_join(rail_stop_ids, by = ???) %>%
+  st_drop_geometry() %>%
+  transmute(stop_id = coalesce(na_if(parent_station, ""), stop_id)) %>%
+  distinct()
+
+# Keep one point per station within the downloaded road-network extent
+rail_stops <- transit$stops %>% 
+  semi_join(rail_station_ids, by = "stop_id") %>%
+  st_filter(atl_bb_sf) # same as `.[atl_bb_sf, ]`
+
+rail_stops_geom <- rail_stops %>% st_geometry()
+```
+
+
+> ***Wait! Didn't we use `semi_join` in the previous lab instead of `inner_join`?***
+>
+> Yes, but the joins serve different purposes. In the previous lab, we had already identified the IDs we wanted and used `semi_join()` to filter an existing table without adding columns. Here, `inner_join()` carries the key needed for each step in the relational chain. Once those IDs have been created, we use `semi_join()` to retain matching records from `transit$stops` without adding columns or duplicating rows.
+
+> ***So how are `inner_join` and `semi_join` different?***
+>
+> Both keep records with a match, but `inner_join()` returns columns from both tables and can create multiple rows when one record has several matches. `semi_join()` returns only the rows and columns from the first table and does not duplicate its rows because of multiple matches. Use `inner_join()` when you need information from both tables; use `semi_join()` when you only want to identify or retain matching records from the first table.
+
+
+Let's assume that your origin location is near the **Trap Music Museum**, on the southwest side of the Georgia Tech campus.
+
+> If you defined your own bounding box earlier, you may need to choose a different origin point within your selected network.
+
+```{r}
+park_n_ride_origin <- "Trap Music Museum Atlanta"
+park_n_ride_origin_p <- nominatimlite::geo_lite_sf(park_n_ride_origin) %>% st_geometry()
+```
+
+It is not immediately obvious which MARTA station is the closest—this is exactly what we aim to determine.
+```{r}
+tm_shape(rail_stops) + tm_dots(fill = "red", size = 1) +
+  tm_shape(park_n_ride_origin_p) + tm_dots(fill = "blue", size = 1.5) +
+  tm_view(set_view = c(lon = park_n_ride_origin_p[[1]][1], 
+                       lat = park_n_ride_origin_p[[1]][2], 
+                       zoom = 13))
+```
+
+To do this, we will use the city-wide OSM network that we downloaded at the beginning.
+```{r}
+# Using the full network file 
+atl_net <- osm_road$osm_lines %>%
+  select(osm_id, highway) %>% 
+  sfnetworks::????(directed = FALSE) %>% 
+  activate("edges") %>%
+  filter(!????) %>%
+  filter(!????) %>% 
+  convert(., sfnetworks::????) %>% 
+  convert(., sfnetworks::????)
+```
+
+
+```{r}
+# Change crs for convenience
+atl_net %<>%
+  st_transform(4326) %>% 
+  activate("edges") %>% 
+  mutate(length = edge_length())
+```
+
+Next, we calculate the shortest paths from the origin to each MARTA rail station using the `st_network_paths()` function.
+```{r}
+# Find the shortest paths from the origin to all MARTA stations
+paths <- ????(atl_net, from = ????, to = ????, type = "shortest", use_names = FALSE)
+```
+
+
+`st_network_paths()` snaps the origin and destination points to their nearest network nodes. However, being within the network's geographic extent does not guarantee that a destination is connected to the origin. The selected OSM roads may form multiple disconnected components.
+
+In the illustration below, **Node A** and **Node B** are reachable from each other because they both belong to **Component 1**. On the other hand, **Node C** belongs to **Component 2** and therefore cannot be reached from Node A or Node B through the network.
+
+![](https://ujhwang.github.io/urban-analytics-2026/Lab/module_3/img/disconnected_network_components.png)
+
+We therefore identify the nearest network node for the origin and each station, then compare their component memberships. A station is considered reachable only when its node belongs to the same component as the origin. We also extract the edge lengths so that we can calculate the total network distance of each reachable path. This explicit connectivity check is important because an empty edge path can indicate either a disconnected destination or a valid zero-distance path when both points snap to the same node.
+
+```{r}
+# Check whether the snapped origin and destinations are connected.
+network_nodes <- atl_net %>% st_as_sf(????)
+origin_node <- st_nearest_feature(park_n_ride_origin_p, network_nodes)
+destination_nodes <- st_nearest_feature(????, network_nodes)
+component_id <- igraph::components(atl_net)$membership # Network membership
+
+# Identify destinations in the same network component as the origin
+reachable <- component_id[destination_nodes] == component_id[????]
+
+# Get edge length
+edge_lengths <- atl_net %>% activate(????) %>% pull(length)
+```
+
+
+```{r}
+# Measure only the edges in each path. A zero-distance route can be valid.
+dist_all <- map_dbl(seq_len(nrow(paths)), function(i) {
+  if (!reachable[i]) return(Inf)
+  sum(edge_lengths[paths$edge_paths[[i]]])
+})
+
+# Rank reachable destinations only.
+reachable_ids <- which(is.finite(dist_all))
+if (length(reachable_ids) == 0) stop("No stations are reachable from this origin.")
+closest_ids <- head(reachable_ids[order(dist_all[reachable_ids])], 3)
+```
+
+Finally, we can visualize the closest station on a map. The map displays paths to up to three reachable stations, with the closest one highlighted in red.
+
+```{r}
+paths_list <- map(closest_ids, ~ atl_net %>%
+  activate("edges") %>%
+  slice(paths$edge_paths[[.x]]))
+stations_list <- map(closest_ids, ~ rail_stops %>% slice(.x))
+
+# Define colors
+colors <- c("#C43C39", "#1764AB", "#00816A")
+
+# Initialize base map
+m <- leaflet() %>%
+  addProviderTiles(providers$OpenStreetMap) %>%
+  setView(park_n_ride_origin_p[[1]][1], park_n_ride_origin_p[[1]][2], zoom = 13) %>% 
+  addCircles(data = rail_stops, color = "black", weight = 1,
+             fillColor = "#222222", fillOpacity = 0.9, radius = 50)
+
+# Add paths and stations
+for (i in seq_along(paths_list)) {
+  m %<>%
+    addPolylines(
+      data = paths_list[[i]] %>% st_as_sf("edges") %>% st_transform(4326),
+      color = colors[i], weight = 6, opacity = 0.9
+    ) %>%
+    addCircles(
+      data = atl_net %>% st_as_sf("nodes") %>%
+        slice(paths$node_paths[[closest_ids[i]]]) %>% st_transform(4326),
+      stroke = FALSE, fillColor = colors[i],
+      fillOpacity = 0.8, radius = 50
+    ) %>%
+    addCircles(
+      data = stations_list[[i]],
+      color = colors[i],
+      radius = 300,
+      label = ~stop_name,
+      labelOptions = labelOptions(
+        noHide = TRUE,
+        direction = "top",
+        offset = c(0, -10)
+      )
+    )
+}
+
+m
+```
+
+We found that the closest MARTA station to **`r park_n_ride_origin`** is **`r rail_stops$stop_name[closest_ids[1]]`**, at a network distance of approximately **`r round(dist_all[closest_ids[1]] / 1609, 2)` miles**. This is the shortest distance along the selected OSM road network.
+
+> What would we need to change if we wanted to calculate walking routes instead?
+
+# Appendix: Overpass API troubleshooting
+
+## Server issue
+
+The Overpass server may be busy or unavailable. You can try another endpoint.
+
+```{r}
+# Option 1 (default):
+set_overpass_url("https://overpass-api.de/api/interpreter")
+
+# Option 2:
+set_overpass_url("https://overpass.private.coffee/api/interpreter")
+```
+
+## Outdated R 
+
+R and RStudio update separately: updating RStudio does not update R. If R is outdated, install a newer version and check that RStudio is using it. You can see your R version and date in the console when you first open RStudio. For example:
+
+*R version 4.6.1 (2026-06-24 ucrt) -- "Happy Hop"*
+
+## SSL issue
+
+If you are using Windows and see an SSL handshake error mentioning `schannel`, switching R's curl backend to OpenSSL may help.
+
+1. Run `usethis::edit_r_environ()`. If `usethis` is not installed, install it first.
+2. In `.Renviron`, add `CURL_SSL_BACKEND=openssl` on its own line.
+3. Save the file, close RStudio, and reopen it. The setting must take effect before curl initializes.
+4. Check the active backend:
+
+```{r}
+curl::curl_version()$ssl_version
+```
+
+The active backend appears outside parentheses. For example, `OpenSSL/3.4.0 (Schannel)` means OpenSSL is active; `(OpenSSL/3.4.0) Schannel` means Schannel is still active. Version numbers may differ. If OpenSSL is active, try the download again. To restore the default backend later, remove the line from `.Renviron` and restart RStudio.
+
+## If nothing works
+
+Use [this data](https://drive.google.com/file/d/1kbo3UlpiRMNAgBPGtlfcDsd11bc_Zxim/view?usp=drive_link). Download the `rds` file and load it as `osm_road`.
