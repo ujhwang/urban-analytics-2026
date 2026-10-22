@@ -1,0 +1,439 @@
+---
+title: "Major Assignment 1: Park-and-Ride Accessibility"
+author: "Your name"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+    code_folding: show
+---
+
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+# Load the packages used in your analysis.
+```
+
+# How to Use This Starter File
+
+This file provides the structure for your analysis, but it does not provide a step-by-step code solution. Complete the blank code chunks using methods from the GTFS and OSM labs. You may add code chunks, intermediate objects, and subheadings as needed.
+
+Your implementation may differ from the lab examples, but the checkpoint objects named below must exist because later sections and validation checks use them. Explain important choices with concise code comments and short narrative text.
+
+Work through the document in order and knit as you complete sections. Unfinished sections and their validation checks will initially prevent the full document from knitting. While working, you may temporarily set unfinished chunks to `eval = FALSE`; restore evaluation for all required chunks before submitting. Do not include a Census API key or any other private credential in this file.
+
+Use the methods and coding patterns covered in class and the course labs. Substantial unexplained departures may result in a grade penalty, and you may be asked to explain any part of your code.
+
+# Assignment Overview
+
+MARTA wants to understand how long it takes residents in different parts of Atlanta to reach **North Avenue Station** using a park-and-ride trip. Each simulated journey has two stages:
+
+1. Travel from a Census tract centroid to the reachable MARTA rail station offering free daily parking with the shortest estimated driving time along the selected OSM road network.
+2. Travel from that station to North Avenue Station using MARTA service during the assigned morning period.
+
+You will combine OSM, GTFS, and Census data; build a reusable travel-time function; apply it to multiple origins; and evaluate whether estimated travel times differ across neighborhoods.
+
+# Simulation Assumptions
+
+Use the following assumptions throughout your analysis:
+
+- Use the supplied road-class speeds to calculate edge travel times. These are assignment assumptions, not observed average speeds or posted speed limits.
+- Treat roads as undirected. Ignore one-way restrictions, congestion, traffic signals, and turn delays.
+- Select the eligible parking station with the shortest estimated driving time. Do not select by road distance or by combined driving and transit time.
+- Routing uses the nearest network nodes to the tract centroids and stations. Ignore travel between these points and their network nodes.
+- Assume a parking space is available. Ignore parking-search time and walking time from the parking lot to the station platform.
+- Do not add an initial waiting-time allowance before boarding the first train.
+- Use the scheduled journey duration returned by `travel_times()`, allowing at most **one** transfer. Retain any transfer duration and waiting between trains already included in that result; do not subtract them or add them again.
+- For the transfers table, use a maximum connection distance of **200 meters** and a minimum transfer duration of **120 seconds**, as in the GTFS lab.
+- You do not need to restrict GTFS routing to rail-only itineraries. Both endpoints are MARTA rail stations, so rail is the expected connection. Use the journey returned by `travel_times()`, even if it includes a bus segment.
+- Add driving time and transit journey time without synchronizing the train departure with arrival by car.
+
+The result is a simplified driving-plus-transit travel-time estimate, rather than a fully timed door-to-door journey.
+
+
+# Analysis Settings
+
+The bounding box below defines the study area used throughout the assignment.
+
+```{r analysis-settings}
+study_bbox <- sf::st_bbox(
+  c(
+    xmin = -84.4753,
+    ymin = 33.7151,
+    xmax = -84.3091,
+    ymax = 33.8283
+  ),
+  crs = sf::st_crs(4326)
+)
+```
+
+# Provided Parking Data
+
+For this assignment, a rail station is eligible as a park-and-ride station only if MARTA lists it as offering free daily parking. The vector below uses the station names found in the current GTFS feed. It represents whether a station offers free daily parking, not whether a parking space is available in real time. Apply the parking-availability assumption above.
+
+Sources: [MARTA Parking Availability](https://itsmarta.com/parking-availability.aspx) and [Ashby Station](https://itsmarta.com/ashby.aspx)
+
+```{r parking-data}
+free_parking_station_names <- c(
+  "ASHBY STATION",
+  "AVONDALE STATION",
+  "BROOKHAVEN-OGLETHORPE STATION",
+  "CHAMBLEE STATION",
+  "COLLEGE PARK STATION",
+  "DORAVILLE STATION",
+  "DUNWOODY STATION",
+  "EAST LAKE STATION",
+  "EAST POINT STATION",
+  "EDGEWOOD-CANDLER PARK STATION",
+  "HAMILTON E HOLMES STATION",
+  "INDIAN CREEK STATION",
+  "INMAN PARK-REYNOLDSTOWN STATION",
+  "KENSINGTON STATION",
+  "LAKEWOOD-FT MCPHERSON STATION",
+  "LENOX STATION",
+  "LINDBERGH CENTER STATION",
+  "MEDICAL CENTER STATION",
+  "NORTH SPRINGS STATION",
+  "OAKLAND CITY STATION",
+  "SANDY SPRINGS STATION",
+  "WEST END STATION",
+  "WEST LAKE STATION"
+)
+```
+
+# 1. Prepare GTFS Data
+
+Download the MARTA GTFS feed and prepare the information needed for transit routing between rail stations.
+
+Your workflow should:
+
+- identify rail service using the GTFS route type;
+- connect routes, trips, stop times, and stops using the appropriate keys;
+- represent each physical rail station once using `parent_station` when available;
+- retain stations within the study area using `study_bbox`;
+- restrict potential park-and-ride stations to those listed in `free_parking_station_names`;
+- identify North Avenue Station as the transit destination; and
+- create any transfer or filtered stop-time tables needed for routing during the assigned morning period.
+
+Prepare transit routing for November 18, 2026, between 7 AM and 10 AM. For the selected parking station, use the minimum scheduled journey duration to North Avenue among journeys departing during this window and arriving by 10 AM. Set `time_range` to cover the full three-hour departure window. The relevant GTFS routing functions express times as seconds after midnight.
+
+The study-area restriction applies to station points used as candidate park-and-ride locations. Keep the full GTFS service network for transit routing, including trips and transfers that may extend outside the study area.
+
+Create these checkpoint objects:
+
+- `gtfs`: the prepared GTFS feed;
+- `rail_stations`: one spatial point per physical rail station in the study area;
+- `park_ride_stations`: the subset of `rail_stations` that offers free daily parking;
+- `destination_stop`: the North Avenue Station record; and
+- `morning_stop_times`: stop times prepared for the assigned date and time window.
+
+Parent stations and their platforms can have different names. For example, North Avenue's parent record uses `"NORTH AVE STATION"`, while its platforms use `"NORTH AVENUE STATION"`. Use the supplied code below after downloading `gtfs` and before creating spatial stop objects or routing tables. It gives platforms their parent station's name without changing stop IDs or parent-station links.
+
+```{r prepare-gtfs}
+# Download and prepare the MARTA GTFS feed.
+
+# Provided: make platform names consistent with their parent station names.
+parent_names <- gtfs$stops %>%
+  select(parent_station = stop_id, parent_name = stop_name)
+
+gtfs$stops <- gtfs$stops %>%
+  left_join(parent_names, by = "parent_station") %>%
+  mutate(stop_name = coalesce(parent_name, stop_name)) %>%
+  select(-parent_name)
+
+# Identify physical rail stations, eligible parking stations, and North Avenue Station.
+
+# Prepare transfers and stop times for the assigned date and morning period.
+```
+
+```{r validate-gtfs}
+# Checkpoint: these checks should run without errors.
+stopifnot(inherits(rail_stations, "sf"))
+stopifnot(nrow(rail_stations) > 0)
+stopifnot("stop_name" %in% names(rail_stations))
+stopifnot(inherits(park_ride_stations, "sf"))
+stopifnot(nrow(park_ride_stations) > 0)
+stopifnot(all(park_ride_stations$stop_name %in% free_parking_station_names))
+stopifnot(nrow(destination_stop) >= 1)
+```
+
+# 2. Prepare Census Data
+
+Download 2024 ACS 5-year estimates for Census tracts in Fulton, DeKalb, and Clayton counties. Prepare:
+
+- median household income;
+- the population variables needed to calculate the proportion of minority population; and
+- tract geometry.
+
+Briefly state how you define minority population.
+
+**Your explanation:**
+
+Store `pct_minority` as a proportion from 0 to 1. Keep the tract polygons for mapping and create one centroid per tract for routing. Calculate centroids in a suitable projected CRS, then retain only origins whose centroids fall within the study area using `study_bbox`.
+
+Create these checkpoint objects:
+
+- `census_tracts`: tract polygons containing `GEOID`, `hhinc`, and `pct_minority`; and
+- `origins`: tract centroids containing the same identifiers and attributes.
+
+```{r prepare-census}
+# Download the ACS estimates and calculate the demographic measures.
+
+# Create tract centroids and retain origins within the study area.
+
+# Keep the corresponding tract polygons and attributes for mapping.
+```
+
+```{r validate-census}
+# Checkpoint: these checks should run without errors.
+stopifnot(inherits(census_tracts, "sf"))
+stopifnot(inherits(origins, "sf"))
+stopifnot(all(c("GEOID", "hhinc", "pct_minority") %in% names(census_tracts)))
+stopifnot(all(c("GEOID", "hhinc", "pct_minority") %in% names(origins)))
+stopifnot(nrow(origins) > 0)
+```
+
+# 3. Build the OSM Road Network
+
+Download a road network containing motorways, trunk roads, primary roads, secondary roads, and tertiary roads. Include the corresponding connector roads for all five classes so that ramps and connecting segments are retained. Exclude residential roads and other highway classes. Refer to the OSM lab or OSM documentation for the appropriate `highway` values.
+
+Assign each road segment an assumed speed in miles per hour:
+
+- Motorway: 55
+- Trunk: 45
+- Primary: 35
+- Secondary: 30
+- Tertiary: 25
+- Connector roads (all five classes): 20
+
+Convert the roads to an undirected `sfnetwork` and clean it using the methods introduced in the OSM lab. When smoothing the network, 1) preserve road-class changes with `require_equal = "highway"` so that segments with different assumed speeds are not merged into a single edge and 2) use `summarise_attributes = "first"` to retain the road class on merged edges.
+
+After cleaning, calculate edge lengths, assign the assumed speeds, and calculate each edge's travel time. Use consistent units: lengths in meters, speeds in miles per hour, and travel times in minutes. Every edge must have a road class listed above and a valid speed.
+
+Create `road_network`, an `sfnetwork` with edge columns named `length`, `speed_mph`, and `travel_time_min`.
+
+```{r prepare-osm}
+# Download the roads within the study area.
+
+# Build and clean the network, preserving road classes.
+
+# Calculate edge lengths, assign speeds, and calculate travel times.
+```
+
+```{r validate-osm}
+# Checkpoint: these checks should run without errors.
+stopifnot(inherits(road_network, "sfnetwork"))
+stopifnot(all(c("length", "speed_mph", "travel_time_min") %in%
+                names(st_as_sf(road_network, "edges"))))
+stopifnot(nrow(road_network %>% st_as_sf("nodes")) > 0)
+stopifnot(nrow(road_network %>% st_as_sf("edges")) > 0)
+```
+
+# 4. Test One Park-and-Ride Trip
+
+Before writing a function, test the complete workflow with one row from `origins`. Follow the simulation assumptions above. Pass `weights` argument explicitly to `st_network_paths()` to find the fastest paths. Use the comments below to organize your test.
+
+Do not treat every empty edge path as a disconnected destination. An empty path can also occur when the origin and destination snap to the same network node.
+
+Create `test_trip`, a one-row data.frame containing at least:
+
+- `GEOID`;
+- `selected_station` (the eligible station reached fastest by car);
+- `drive_time_min`;
+- `transit_time_min`;
+- `total_time_min`.
+
+```{r test-one-trip}
+# Choose one origin tract for testing.
+
+# Calculate travel-time-weighted paths to all eligible parking stations.
+
+# Identify reachable stations and sum the edge travel times for each path.
+
+# Select the station with the shortest driving time.
+
+# Calculate transit journeys from that station to North Avenue station during the assigned morning window; retain the minimum journey duration.
+
+# Create test_trip with the origin GEOID, selected station, driving time, transit time, and total time.
+```
+
+```{r validate-test-trip}
+# Checkpoint: these checks should run without errors.
+required_trip_fields <- c(
+  "GEOID", "selected_station", "drive_time_min",
+  "transit_time_min", "total_time_min"
+)
+stopifnot(inherits(test_trip, "data.frame"))
+stopifnot(nrow(test_trip) == 1)
+stopifnot(all(required_trip_fields %in% names(test_trip)))
+```
+
+# 5. Write a Reusable Function
+
+Convert the tested workflow into a function. Keep the function focused on one origin point and return a one-row data.frame with the same fields as `test_trip`. You may add arguments if your implementation requires them, but keep the arguments shown below and return the required fields.
+
+```{r define-function}
+calculate_park_ride <- function(
+    origin_point,
+    road_network,
+    park_ride_stations,
+    morning_stop_times,
+    destination_stop,
+    max_transfers) {
+
+  # Implement the workflow tested in the previous section.
+
+}
+```
+
+# 6. Apply the Function to All Origins
+
+Apply `calculate_park_ride()` to every row in `origins`. The iteration code is provided below. If you retain the required object and function names, you do not need to modify it. No additional coding is required in this section; run the provided chunks, inspect the results, and explain any unsuccessful trips.
+
+Create `trip_results`, with one row per attempted origin and all required fields. The provided loop records an `NA` row if a calculation raises an error, then continues to the next origin. Test one trip successfully first; the loop also catches programming errors, which should be corrected.
+
+```{r calculate-all-trips}
+# Provided iteration structure
+trip_results_list <- vector("list", nrow(origins))
+
+for (i in seq_len(nrow(origins))) {
+  trip_results_list[[i]] <- tryCatch(
+    calculate_park_ride(
+      origin_point = origins[i, ],
+      road_network = road_network,
+      park_ride_stations = park_ride_stations,
+      morning_stop_times = morning_stop_times,
+      destination_stop = destination_stop,
+      max_transfers = 1
+    ),
+    error = function(e) {
+      message("Tract ", origins$GEOID[i], ": ", conditionMessage(e))
+      data.frame(
+        GEOID = origins$GEOID[i],
+        selected_station = NA_character_,
+        drive_time_min = NA_real_,
+        transit_time_min = NA_real_,
+        total_time_min = NA_real_
+      )
+    }
+  )
+}
+
+trip_results <- bind_rows(trip_results_list)
+```
+
+```{r validate-results}
+# Checkpoint: inspect failures before creating the final visualizations.
+stopifnot(inherits(trip_results, "data.frame"))
+stopifnot(all(required_trip_fields %in% names(trip_results)))
+stopifnot(nrow(trip_results) == nrow(origins))
+
+sum(is.na(trip_results$total_time_min))
+```
+
+If there were any unsuccessful trips, briefly explain why.
+
+**Your explanation:**
+
+
+# 7. Visualize and Interpret the Results
+
+Join `trip_results` to the Census attributes and tract polygons to prepare the maps and scatterplots.
+
+Create the following four visualizations:
+
+1. An interactive map comparing household income and total travel time.
+2. An interactive map comparing the proportion of minority population and total travel time.
+3. A scatterplot of household income and total travel time, including a fitted trend line.
+4. A scatterplot of the proportion of minority population and total travel time, including a fitted trend line.
+
+Each visualization should have a clear title and clearly labeled units. Both maps must include legends; scatterplots need legends only when they encode multiple groups or series. Use a consistent treatment of missing or unsuccessful trips. Maps should make the geographic pattern legible without obscuring the Census geography.
+
+```{r map-income}
+# Map household income and total park-and-ride travel time.
+```
+
+```{r map-minority}
+# Map the proportion of minority population and total park-and-ride travel time.
+```
+
+```{r plot-income}
+# Plot household income against total park-and-ride travel time.
+```
+
+```{r plot-minority}
+# Plot the proportion of minority population against total park-and-ride travel time.
+```
+
+## Findings
+
+In no more than 200 words, summarize the most important spatial and statistical patterns. Discuss whether the results suggest disparities in park-and-ride accessibility and identify at least two limitations of the simulation. Separate what the analysis shows from explanations that would require additional evidence.
+
+**Your findings:**
+
+
+> **Your analysis and written responses end here.** The remaining sections display a result summary, selected trip results, and session information. Run them and include their output in your HTML submission. Do not edit or delete the code chunks below.
+
+# Results Summary
+
+```{r result-summary}
+# Provided output: do not edit or delete.
+result_summary <- data.frame(
+  rail_stations = nrow(rail_stations),
+  eligible_parking_stations = nrow(park_ride_stations),
+  origins = nrow(origins),
+  result_rows = nrow(trip_results),
+  duplicate_result_geoids = sum(duplicated(trip_results$GEOID)),
+  missing_total_times = sum(is.na(trip_results$total_time_min))
+)
+
+knitr::kable(result_summary)
+```
+
+```{r eligible-stations}
+# Provided output: do not edit or delete.
+eligible_station_table <- park_ride_stations %>%
+  sf::st_drop_geometry() %>%
+  dplyr::select(stop_id, stop_name) %>%
+  dplyr::arrange(stop_name)
+
+knitr::kable(eligible_station_table)
+```
+
+```{r station-selections}
+# Provided output: do not edit or delete.
+station_selections <- trip_results %>%
+  dplyr::count(selected_station, name = "origin_count", sort = TRUE)
+
+knitr::kable(station_selections)
+```
+
+```{r selected-origins}
+# Provided output: do not edit or delete.
+set.seed(2026)
+selected_geoids <- origins %>%
+  sf::st_drop_geometry() %>%
+  dplyr::distinct(GEOID) %>%
+  dplyr::arrange(GEOID) %>%
+  dplyr::slice_sample(n = 20) %>%
+  dplyr::arrange(GEOID)
+
+selected_results <- selected_geoids %>%
+  dplyr::left_join(trip_results, by = "GEOID")
+
+knitr::kable(selected_results, digits = 2)
+```
+
+# Reproducibility
+
+```{r session-info}
+sessionInfo()
+```
+
+
