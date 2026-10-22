@@ -22,13 +22,13 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 
 # How to Use This Starter File
 
-This file provides the structure for your analysis, but it does not provide a step-by-step code solution. Complete the blank code chunks using methods from the GTFS and OSM labs. You may add code chunks, intermediate objects, and subheadings as needed.
+This file provides the structure for your analysis. Complete the blank code chunks, provide explanations where requested, and add code comments where necessary. Keep the existing code chunks and section headings.
 
 Your implementation may differ from the lab examples, but the checkpoint objects named below must exist because later sections and validation checks use them. Explain important choices with concise code comments and short narrative text.
 
-Work through the document in order and knit as you complete sections. Unfinished sections and their validation checks will initially prevent the full document from knitting. While working, you may temporarily set unfinished chunks to `eval = FALSE`; restore evaluation for all required chunks before submitting. Do not include a Census API key or any other private credential in this file.
+Work through the document in order and knit as you complete sections. Unfinished code and validation checks may prevent the document from knitting. While working, you may temporarily comment out those lines (`Ctrl/Cmd + Shift + C`). Uncomment them using the same shortcut and confirm that the entire document knits before submitting. Do not include a Census API key or any other private credential in this file.
 
-Use the methods and coding patterns covered in class and the course labs. Substantial unexplained departures may result in a grade penalty, and you may be asked to explain any part of your code.
+**Use the methods and coding patterns covered in class and the course labs. Substantial unexplained departures may result in a grade penalty, and you may be asked to explain any part of your code.**
 
 # Assignment Overview
 
@@ -245,9 +245,9 @@ Create `test_trip`, a one-row data.frame containing at least:
 
 - `GEOID`;
 - `selected_station` (the eligible station reached fastest by car);
-- `drive_time_min`;
-- `transit_time_min`;
-- `total_time_min`.
+- `drive_time_min`: estimated driving time from the tract centroid to the selected station, in minutes;
+- `transit_time_min`: minimum scheduled journey duration from the selected station to North Avenue during the assigned morning window, in minutes; and
+- `total_time_min`: sum of driving and transit travel times, in minutes.
 
 ```{r test-one-trip}
 # Choose one origin tract for testing.
@@ -348,12 +348,14 @@ Join `trip_results` to the Census attributes and tract polygons to prepare the m
 
 Create the following four visualizations:
 
-1. An interactive map comparing household income and total travel time.
-2. An interactive map comparing the proportion of minority population and total travel time.
+1. An interactive map comparison of household income and total travel time.
+2. An interactive map comparison of the proportion of minority population and total travel time.
 3. A scatterplot of household income and total travel time, including a fitted trend line.
 4. A scatterplot of the proportion of minority population and total travel time, including a fitted trend line.
 
-Each visualization should have a clear title and clearly labeled units. Both maps must include legends; scatterplots need legends only when they encode multiple groups or series. Use a consistent treatment of missing or unsuccessful trips. Maps should make the geographic pattern legible without obscuring the Census geography.
+For each map comparison, you may use two layers in one map, two synchronized maps side by side, or two separate interactive maps. Make both variables easy to identify and compare. If using separate maps, use the same geographic extent and zoom level.
+
+Each visualization should have a clear title and clearly labeled units. All maps must include legends. Maps should make the geographic pattern legible without obscuring the Census geography.
 
 ```{r map-income}
 # Map household income and total park-and-ride travel time.
@@ -394,6 +396,18 @@ result_summary <- data.frame(
 )
 
 knitr::kable(result_summary)
+```
+
+```{r travel-time-summary}
+# Provided output: do not edit or delete.
+travel_time_summary <- trip_results %>%
+  dplyr::summarise(
+    min_min = min(total_time_min, na.rm = TRUE),
+    max_min = max(total_time_min, na.rm = TRUE),
+    mean_min = mean(total_time_min, na.rm = TRUE)
+  )
+
+knitr::kable(travel_time_summary, digits = 2, caption = "Simulated total travel time (minutes)")
 ```
 
 ```{r eligible-stations}
