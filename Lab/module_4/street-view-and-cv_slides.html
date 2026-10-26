@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Streetview Images and Computer Vision</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Uijeong “UJ” Hwang" />
+    <meta name="date" content="2026-10-26" />
+    <script src="libs/header-attrs-2.29/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/sydney-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="assets/sydney.css" type="text/css" />
+    <link rel="stylesheet" href="assets/inline-code.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+class: middle, inverse
+
+# Streetview Images and Computer Vision
+
+.font100[
+Uijeong "UJ" Hwang
+
+2026-10-26
+]
+
+
+
+
+
+&lt;style&gt;
+.remark-slide-content {
+  font-size: 25px;
+  padding: 1.2em 2.3em 0.9em 2.3em;
+}
+.remark-slide-content h1 {
+  font-size: 43px;
+}
+.remark-slide-content h2 {
+  font-size: 33px;
+  margin-bottom: 0.42em;
+}
+.remark-slide-content h3 {
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 0.4em;
+  margin-bottom: 0.25em;
+}
+.remark-slide-content p,
+.remark-slide-content li {
+  line-height: 1.2;
+}
+.remark-slide-content ul,
+.remark-slide-content ol {
+  margin-top: 0.25em;
+}
+.small {
+  font-size: 20px;
+  line-height: 1.16;
+}
+.dense {
+  font-size: 21px;
+  line-height: 1.14;
+}
+.citation {
+  color: #666;
+  font-size: 16px;
+  line-height: 1.15;
+}
+.slide-img {
+  display: block;
+  width: 100%;
+  height: 470px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.compact-img {
+  display: block;
+  width: 100%;
+  height: 350px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.short-img {
+  display: block;
+  width: 100%;
+  height: 260px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.full-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.image-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65em;
+  align-items: center;
+}
+.image-grid-3 img {
+  display: block;
+  width: 100%;
+  height: 320px;
+  object-fit: contain;
+}
+.image-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7em;
+  align-items: center;
+}
+.image-grid-2 img {
+  display: block;
+  width: 100%;
+  height: 390px;
+  object-fit: contain;
+}
+.api-url {
+  font-family: "Fira Mono", monospace;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+.api-url.plain {
+  color: #111;
+}
+.terms-box {
+  border: 2px solid #777;
+  padding: 0.45em 0.6em;
+  font-size: 22px;
+  line-height: 1.18;
+}
+.terms-source {
+  font-size: 22px;
+  margin-bottom: 0.55em;
+}
+.api-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.55em 0.8em;
+  height: 440px;
+  align-items: center;
+  justify-items: center;
+}
+.api-left {
+  grid-row: 1 / span 2;
+}
+.api-frame {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+}
+.api-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.api-cloud {
+  height: 100%;
+  aspect-ratio: 480 / 445;
+}
+.api-library {
+  width: 100%;
+  aspect-ratio: 605 / 284;
+}
+.api-enabled {
+  height: 100%;
+  aspect-ratio: 454 / 236;
+}
+.red-callout {
+  position: absolute;
+  border: 4px solid #e00000;
+  box-sizing: border-box;
+  z-index: 2;
+}
+.colab-visual {
+  width: 100%;
+  height: 400px;
+  margin: 0 auto;
+}
+.colab-main {
+  display: block;
+  width: 100%;
+  height: 400px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.built-layout {
+  display: grid;
+  grid-template-columns: 38% 62%;
+  gap: 1em;
+  align-items: center;
+}
+.built-layout img {
+  display: block;
+  width: 100%;
+  height: 430px;
+  object-fit: contain;
+}
+.traditional-layout {
+  display: grid;
+  grid-template-columns: 72% 28%;
+  gap: 0.8em;
+  align-items: center;
+}
+.traditional-layout img {
+  display: block;
+  width: 100%;
+  height: 475px;
+  object-fit: contain;
+}
+.built-copy {
+  float: left;
+  width: 37%;
+}
+.built-image {
+  float: right;
+  width: 61%;
+}
+.built-image img {
+  display: block;
+  width: 100%;
+  height: 430px;
+  object-fit: contain;
+}
+.traditional-image {
+  float: left;
+  width: 70%;
+}
+.traditional-copy {
+  float: right;
+  width: 27%;
+}
+.traditional-image img {
+  display: block;
+  width: 100%;
+  height: 475px;
+  object-fit: contain;
+}
+.compare-prompt {
+  margin-top: 1.6em;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+.scene-slide {
+  padding: 0;
+  position: relative;
+  color: white;
+}
+.scene-title {
+  position: absolute;
+  top: 4%;
+  left: 4%;
+  z-index: 2;
+  margin: 0;
+  color: white;
+  font-family: "Open Sans", sans-serif;
+  font-size: 38px;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+}
+.scene-label {
+  position: absolute;
+  z-index: 2;
+  color: #ffe600;
+  font-family: "Open Sans", sans-serif;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.05;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.95);
+}
+.scene-definition {
+  position: absolute;
+  top: 35%;
+  left: 30%;
+  width: 66%;
+  z-index: 2;
+  color: #ffe600;
+  font-family: "Open Sans", sans-serif;
+  font-size: 31px;
+  font-weight: 700;
+  line-height: 1.12;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.95);
+}
+.feature-flow {
+  display: grid;
+  grid-template-columns: 0.8fr 3fr 1fr;
+  gap: 0.7em;
+  align-items: center;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+}
+.feature-flow img {
+  width: 100%;
+  height: 205px;
+  object-fit: contain;
+}
+.prediction {
+  border: 2px solid #111;
+  border-radius: 8px;
+  padding: 0.35em;
+  margin: 0.5em 0;
+  background: white;
+  font-weight: 400;
+}
+.prediction.correct {
+  background: #fff500;
+  font-weight: 700;
+}
+.transfer-img {
+  display: block;
+  width: 100%;
+  height: 300px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.validation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2em;
+}
+.validation-grid h3 {
+  color: #1c5253;
+}
+.validation-takeaway {
+  clear: both;
+  margin-top: 0.7em;
+  border-left: 5px solid #1c5253;
+  padding: 0.5em 0.8em;
+  background: #f4f8f8;
+  font-size: 24px;
+  font-weight: 700;
+}
+.urban-measure-layout {
+  display: grid;
+  grid-template-columns: 53% 47%;
+  gap: 1em;
+  align-items: center;
+}
+.urban-measure-layout img {
+  display: block;
+  width: 100%;
+  height: 400px;
+  object-fit: contain;
+}
+.workflow-step {
+  border-left: 5px solid #1c5253;
+  padding: 0.35em 0.65em;
+  margin-bottom: 0.55em;
+  background: #f4f8f8;
+  font-size: 20px;
+  line-height: 1.15;
+}
+.workflow-step strong {
+  color: #1c5253;
+  font-size: 23px;
+}
+.workflow-takeaway {
+  margin-top: 0.55em;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.18;
+}
+&lt;/style&gt;
+
+---
+
+## Module 4 in a Nutshell
+
+1. ~~Get a Google API key.~~
+2. Download street-network data from OpenStreetMap and clean it.
+3. Generate points along the edges where Google Street View (GSV) images will be downloaded.
+4. Calculate the heading for each point.
+5. Create a function that takes a point as input and downloads GSV images.
+6. Apply a computer-vision model to the images.
+7. Merge the results back to the points from Step 3 for analysis.
+
+.small[
+- We will cover Steps 2–5 next Monday and Steps 6–7 next Wednesday.
+- We will use Google Colab for the computer-vision portion (Steps 6–7).
+]
+
+---
+
+## Make Sure the Street View Static API Is Enabled
+
+&lt;div class="api-layout"&gt;
+  &lt;div class="api-frame api-cloud api-left"&gt;
+    &lt;img src="img/google_cloud_apis.png" alt="Google Cloud menu showing APIs and Services"&gt;
+    &lt;span class="red-callout" style="left:56.5%; top:61%; width:39%; height:10%;"&gt;&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class="api-frame api-library"&gt;
+    &lt;img src="img/api_library.png" alt="API Library search for Street View Static API"&gt;
+    &lt;span class="red-callout" style="left:8%; top:57%; width:40%; height:19%;"&gt;&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class="api-frame api-enabled"&gt;
+    &lt;img src="img/street_view_api_enabled.png" alt="Street View Static API enabled in Google Cloud"&gt;
+    &lt;span class="red-callout" style="left:49%; top:70%; width:25.6%; height:14.1%;"&gt;&lt;/span&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+---
+
+## Google Colab
+
+- [Google Colab](https://colab.research.google.com/) is a cloud-based Jupyter Notebook environment hosted by Google.
+- The free tier has a 12-hour session limit. After 12 hours of computation, the session will expire.
+
+&lt;div class="colab-visual"&gt;
+  &lt;img class="colab-main" src="img/colab_runtime.png" alt="Google Colab runtime settings"&gt;
+&lt;/div&gt;
+
+---
+
+class: middle, inverse, center
+
+# Why Do Street View Images Matter in Urban Planning?
+
+---
+
+## Built Environment
+
+.built-copy[
+- The **built environment** refers to human-made conditions, including buildings, public infrastructure, transportation, and open space. It provides the setting for human activity (McClure et al., 2007).
+- The built environment affects public health, public safety, environmental sustainability, economic vitality, tourism, and more.
+]
+
+.built-image[
+&lt;img src="img/built_environment_city.jpg" alt="Atlanta skyline at night"&gt;
+]
+
+---
+
+## Traditionally, We Measured...
+
+.traditional-image[
+&lt;img src="img/built_environment_aerial.png" alt="Aerial view used to measure urban form"&gt;
+]
+
+.traditional-copy[
+- Density
+  - Population
+  - Employment
+  - Development
+  - Intersections
+- Accessibility
+  - Jobs
+  - Amenities
+  - Public transit
+  - Parks and green space
+- Land use
+]
+
+---
+class: scene-slide
+background-image: url("img/streetscape_example.png")
+background-size: cover
+background-position: center
+
+&lt;div class="scene-title"&gt;With street view, we can measure...&lt;/div&gt;
+
+---
+class: scene-slide
+background-image: url("img/streetscape_example.png")
+background-size: cover
+background-position: center
+
+&lt;div class="scene-title"&gt;With street view, we can measure...&lt;/div&gt;
+&lt;div class="scene-label" style="left:7.6%; top:82.6%; width:18.6%;"&gt;Bike lane&lt;/div&gt;
+&lt;div class="scene-label" style="left:13.4%; top:59%; width:27%;"&gt;Street parking&lt;/div&gt;
+&lt;div class="scene-label" style="left:24.8%; top:18.3%; width:18.7%;"&gt;Buildings&lt;/div&gt;
+&lt;div class="scene-label" style="left:60.2%; top:35.7%; width:18.7%;"&gt;Trees&lt;/div&gt;
+&lt;div class="scene-label" style="left:65.4%; top:50.2%; width:22.9%;"&gt;Streetlight&lt;/div&gt;
+&lt;div class="scene-label" style="left:45.6%; top:56.9%; width:10.8%;"&gt;Cars&lt;/div&gt;
+&lt;div class="scene-label" style="left:56.4%; top:63.6%; width:22.9%;"&gt;Shared bikes&lt;/div&gt;
+&lt;div class="scene-label" style="left:78.6%; top:66.9%; width:18.6%;"&gt;Sidewalk&lt;/div&gt;
+&lt;div class="scene-label" style="left:33.4%; top:80.3%; width:29.5%;"&gt;Vehicular lanes&lt;/div&gt;
+
+---
+class: scene-slide
+background-image: url("img/streetscape_example.png")
+background-size: cover
+background-position: center
+
+&lt;div class="scene-title"&gt;With street view, we can measure...&lt;/div&gt;
+&lt;div class="scene-label" style="left:13.6%; top:31%; width:29.3%;"&gt;Quality and design of&lt;br&gt;street frontage&lt;/div&gt;
+&lt;div class="scene-label" style="left:43.8%; top:18.2%; width:25.8%;"&gt;Sky view factor&lt;/div&gt;
+&lt;div class="scene-label" style="left:74.4%; top:17%; width:25.2%;"&gt;Greenness at&lt;br&gt;eye level&lt;/div&gt;
+&lt;div class="scene-label" style="left:71.6%; top:54%; width:24.6%;"&gt;Sidewalk quality&lt;/div&gt;
+&lt;div class="scene-label" style="left:34%; top:60.1%; width:25.8%;"&gt;Sense of&lt;br&gt;enclosure&lt;/div&gt;
+
+---
+class: scene-slide
+background-image: url("img/streetscape_example.png")
+background-size: cover
+background-position: center
+
+&lt;div class="scene-title"&gt;With street view, we can measure...&lt;/div&gt;
+&lt;div class="scene-definition" style="left:9.6%; top:21.6%; width:88%;"&gt;&lt;span style="font-size:42px;"&gt;Streetscape:&lt;/span&gt;&lt;br&gt;Physical layout and design of the street environment&lt;/div&gt;
+
+---
+class: middle, center
+
+&lt;img class="slide-img" src="img/walking_audit.png" alt="People conducting a walking audit of a street"&gt;
+
+---
+
+class: middle, inverse, center
+
+# Google Street View Images
+
+---
+
+## Street View Image APIs
+
+- Google Street View (GSV)
+- ~~Bing Maps Streetside View (Bing Maps platform is scheduled for retirement by June 30, 2028)~~
+- **Mapillary:** a platform for sharing crowdsourced, geotagged street-view images; acquired by Meta in 2020.
+
+&lt;br&gt;
+
+.compare-prompt[
+Compare [Google](https://maps.app.goo.gl/mvRxAcSyMr9Y66gr8) and [Mapillary](https://www.mapillary.com/app/?lat=33.776877180038994&amp;lng=-84.38922866346354&amp;z=17.55360251867394&amp;pKey=304077194671114&amp;focus=photo&amp;x=0.5180203878448332&amp;y=0.6434041655946589&amp;zoom=0) street-view images.
+]
+
+---
+
+## Google Street View Images
+
+.pull-left[
+- Images are captured at roughly 10-meter (33-foot) intervals by cameras that are often, but not always, mounted on a car roof.
+- Each location provides a 360-degree image.
+- Coverage extends across the United States and internationally, and historical imagery is available in many locations.
+]
+
+.pull-right[
+&lt;img class="slide-img" src="img/street_view_car.png" alt="Google Street View camera car"&gt;
+]
+
+---
+
+## Google Street View Images
+
+- Around 2010, planning studies began using Google Street View images to audit street environments.
+- In early studies, human auditors reviewed GSV images and conducted manual audits.
+- Recent studies increasingly use computer vision instead of manual audits.
+
+---
+
+## Google Street View Images
+
+- Google Street View on the web is free, but use of the **API is not free**.
+- The API provides a monthly free usage allowance; usage beyond that allowance is billed.
+- Always monitor your API usage and current pricing.
+
+&lt;div class="image-grid-2"&gt;
+  &lt;div class="center"&gt;&lt;img src="img/gsv_web.JPG" alt="Street View in Google Maps"&gt;&lt;b&gt;Web&lt;/b&gt;&lt;/div&gt;
+  &lt;div class="center"&gt;&lt;img src="img/gsv_api.jfif" alt="Image returned by the Street View Static API"&gt;&lt;b&gt;API&lt;/b&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+---
+
+## Warning: Google Is Not Happy About What We Are Doing
+
+&lt;div class="terms-source"&gt;Google Maps APIs Terms of Service ([https://cloud.google.com/maps-platform/terms/](https://cloud.google.com/maps-platform/terms/))&lt;/div&gt;
+
+&lt;div class="terms-box"&gt;
+3.2.3 &lt;i&gt;Restrictions Against Misusing the Services.&lt;/i&gt;
+
+&lt;p&gt;(a) &lt;i&gt;No Scraping.&lt;/i&gt; Customer will not export, extract, or otherwise scrape Google Maps Content for use outside the Services. For example, Customer will not: (i) pre-fetch, index, store, reshare, or rehost Google Maps Content outside the services; (ii) bulk download Google Maps tiles, Street View images, geocodes, directions, distance matrix results, roads information, places information, elevation values, and time zone details; (iii) copy and save business names, addresses, or user reviews; or (iv) use Google Maps Content with text-to-speech services.&lt;/p&gt;
+&lt;/div&gt;
+
+---
+
+## GSV API Query Format
+
+&lt;div class="api-url"&gt;&lt;span style="color:#0072c6;"&gt;https://maps.googleapis.com/maps/api/streetview?&lt;/span&gt;&lt;br&gt;&lt;span style="color:#f00000;"&gt;size=640x640&lt;/span&gt;&lt;span style="color:#111;"&gt;&amp;amp;&lt;/span&gt;&lt;span style="color:#003cff;"&gt;location=47.5763831,-122.4211769&lt;/span&gt;&lt;br&gt;&lt;span style="color:#111;"&gt;&amp;amp;&lt;/span&gt;&lt;span style="color:#7a3db8;"&gt;fov=90&lt;/span&gt;&lt;span style="color:#111;"&gt;&amp;amp;&lt;/span&gt;&lt;span style="color:#f0a000;"&gt;heading=70&lt;/span&gt;&lt;span style="color:#111;"&gt;&amp;amp;&lt;/span&gt;&lt;span style="color:#0072c6;"&gt;pitch=0&lt;/span&gt;&lt;span style="color:#111;"&gt;&amp;amp;&lt;/span&gt;&lt;span style="color:#008000;"&gt;key=YOUR_API_KEY&lt;/span&gt;&lt;/div&gt;
+
+.dense[
+- `size`: image dimensions
+- `location`: latitude and longitude
+- `fov`: field of view; default is `90`
+- `heading`: camera direction (`0` = north, `90` = east, `180` = south, `270` = west)
+- `pitch`: vertical camera angle; default is `0`
+- `key`: your API key
+]
+
+---
+
+## Try It
+
+This URL, with your key added, returns an image at Tech Square:
+
+&lt;div class="api-url plain"&gt;https://maps.googleapis.com/maps/api/streetview?&lt;br&gt;size=640x640&amp;amp;location=33.7768249,-84.388767&lt;br&gt;&amp;amp;heading=224.96&amp;amp;fov=90&amp;amp;pitch=0&amp;amp;key=YOUR_API_KEY&lt;/div&gt;
+
+&lt;br&gt;
+
+Try different values for `heading`, `fov`, and `pitch`.
+
+---
+
+class: middle, inverse, center
+
+# Computer Vision
+
+---
+
+## Computer Vision
+
+A field of artificial intelligence that teaches computers to understand and interpret visual information.
+
+&lt;img class="slide-img" src="img/computer_vision_example.png" alt="Objects detected in an urban street scene"&gt;
+
+---
+
+## Deep Learning
+
+- Deep learning is part of a broader family of AI methods based on **artificial neural networks**.
+
+&lt;div class="image-grid-2"&gt;
+  &lt;img src="img/artificial_intelligence.jpg" alt="Head with an illuminated neural network"&gt;
+  &lt;img src="img/neural_network.jpg" alt="Diagram of a deep neural network"&gt;
+&lt;/div&gt;
+
+---
+
+## Deep Learning
+
+- Deep learning is part of a broader family of AI methods based on **artificial neural networks**.
+
+&lt;div class="image-grid-2"&gt;
+  &lt;img src="img/artificial_intelligence.jpg" alt="Head with an illuminated neural network"&gt;
+  &lt;img src="img/neural_network_highlighted.png" alt="Connections from an input layer to a hidden layer highlighted in a neural network"&gt;
+&lt;/div&gt;
+
+---
+
+## Key Concepts of Deep Learning
+
+- **Representation learning:** Multiple layers can learn different levels of representation from the data, leading to more effective feature extraction.
+
+&lt;img class="slide-img" src="img/stacked_complexity.png" alt="Low-, middle-, and high-level visual features learned by a model"&gt;
+
+---
+
+## Key Concepts of Deep Learning
+
+- **Automatic feature engineering:** Eliminates much of the manual work involved in feature extraction, a time-consuming step in traditional machine learning.
+
+&lt;div class="feature-flow"&gt;
+  &lt;div&gt;Input&lt;br&gt;&lt;img src="img/brad_pitt.jpg" alt="Photograph used as model input"&gt;&lt;/div&gt;
+  &lt;div&gt;Learned features&lt;br&gt;&lt;img src="img/stacked_complexity.png" alt="Progression from low- to high-level learned features"&gt;&lt;/div&gt;
+  &lt;div&gt;Output&lt;div class="prediction"&gt;Tom Cruise&lt;br&gt;&lt;span class="small"&gt;Probability = 0.05&lt;/span&gt;&lt;/div&gt;&lt;div class="prediction correct"&gt;Brad Pitt&lt;br&gt;&lt;span class="small"&gt;Probability = 0.98&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+---
+
+## Applications of Deep Learning
+
+.pull-left[
+### Computer Vision
+- Image recognition and classification
+- Image segmentation
+- Object detection
+- Autonomous vehicles
+
+### Natural Language Processing
+- Machine translation
+- Text generation
+- Sentiment analysis
+- Conversational AI
+]
+
+.pull-right[
+### Other Applications
+- Speech recognition
+- Medical diagnosis
+- Recommendation systems
+]
+
+---
+
+## Image Classification
+
+- [3D visualization of a convolutional neural network](https://adamharley.com/nn_vis/)
+
+&lt;img class="slide-img" src="img/digit_classification.png" alt="Visualization of a neural network classifying a handwritten digit"&gt;
+
+---
+
+## Image Segmentation
+
+- Segmentation models detect **things** and/or **stuff** in an image.
+  - **Things:** countable objects, such as a person, bicycle, or car
+  - **Stuff:** uncountable regions with a consistent texture, such as sky or road
+
+&lt;img class="compact-img" src="img/stuff_things.png" alt="Street image segmented into things and stuff"&gt;
+
+---
+
+## Image Segmentation
+
+- **Semantic segmentation:** Classifies each pixel into a class (*stuff*).
+- **Instance segmentation:** Detects objects and distinguishes individual instances (*things*).
+- **Panoptic segmentation:** Combines semantic and instance segmentation (*stuff + things*).
+
+&lt;img class="compact-img" src="img/segmentation_types.png" alt="Comparison of semantic, instance, and panoptic segmentation"&gt;
+
+---
+
+## From Pixels to Urban Measures
+
+&lt;div class="urban-measure-layout"&gt;
+&lt;img src="img/streetscape_example_segmented.png" alt="Street-view image with semantic-segmentation classes overlaid"&gt;
+&lt;div&gt;
+  &lt;div class="workflow-step"&gt;&lt;strong&gt;1. Model output&lt;/strong&gt;&lt;br&gt;Assign classes to pixels, objects, or the full image.&lt;/div&gt;
+  &lt;div class="workflow-step"&gt;&lt;strong&gt;2. Urban indicators&lt;/strong&gt;&lt;br&gt;Calculate greenness, sky, road, sidewalk, and building shares.&lt;/div&gt;
+  &lt;div class="workflow-step"&gt;&lt;strong&gt;3. Spatial analysis&lt;/strong&gt;&lt;br&gt;Join indicators to sampled locations, map patterns, compare areas, and model outcomes.&lt;/div&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+
+---
+
+## Validation and Limitations
+
+.pull-left[
+### Imagery
+
+- Capture date, season, and weather
+- Coverage and camera viewpoint
+- Occlusion and image quality
+]
+
+.pull-right[
+### Model and Analysis
+
+- Differences between training and study areas
+- Class-specific accuracy and bias
+- Spatial sampling and aggregation choices
+]
+
+&lt;div class="validation-takeaway"&gt;Model predictions are estimates, not ground truth.&lt;/div&gt;
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false,
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
