@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="author" content="Uijeong “UJ” Hwang" />
     <meta name="date" content="2026-10-28" />
-    <script src="libs/header-attrs-2.29/header-attrs.js"></script>
+    <script src="libs/header-attrs-2.32/header-attrs.js"></script>
     <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
     <link rel="stylesheet" href="assets/sydney-fonts.css" type="text/css" />
     <link rel="stylesheet" href="assets/sydney.css" type="text/css" />
@@ -452,6 +452,28 @@ class: full-slide
 
 ---
 
+## Transfer Learning
+
+- Start with a pretrained model instead of learning every visual feature from scratch.
+- Use its learned features as inputs for a new prediction task.
+
+&lt;img class="short-img" src="img/transfer_learning_1.png" alt="Pretrained image-classification network with a feature-extraction layer highlighted"&gt;
+
+.small[The highlighted layer represents the image as a vector of learned features.]
+
+---
+
+## Transfer Learning: Predicting Visual Safety
+
+- Feed street-view images through the pretrained feature extractor.
+- Train a new predictor using the extracted features and safety labels from Place Pulse.
+
+&lt;img class="short-img" src="img/transfer_learning_2.png" alt="Street-view image features passed from a pretrained network to a new prediction network"&gt;
+
+.small[The pretrained layers can remain fixed, or be fine-tuned during training for the new task.]
+
+---
+
 ## Training Result
 
 &lt;img class="large-img" src="img/training_result.png" alt="Comparison of predicted and observed visual-safety scores"&gt;
@@ -599,10 +621,10 @@ class: resources-slide
 <style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
-"highlightStyle": "github",
-"highlightLines": true,
-"countIncrementalSlides": false,
-"ratio": "16:9"
+  "highlightStyle": "github",
+  "highlightLines": true,
+  "countIncrementalSlides": false,
+  "ratio": "16:9"
 });
 if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
   window.dispatchEvent(new Event('resize'));
