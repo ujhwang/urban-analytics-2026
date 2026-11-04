@@ -1,0 +1,151 @@
+---
+title: "Computer Vision"
+author: 'Uijeong "UJ" Hwang'
+date: '2026-11-04'
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+---
+
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+
+```{r message=F, warning=F}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(magrittr)
+library(sf)
+library(tmap)
+ttm()
+```
+
+> This computer vision lab has two parts: classifying image pixels in Google Colab and analyzing the results in R. Complete the Colab portion and download `seg_output.csv` before starting this document. Use the images you downloaded in the GSV lab.
+
+In the previous GSV lab, we sampled street segments and downloaded four images per segment. In Colab, we applied a semantic segmentation model to classify the pixels in each image. Now we will bring those results back into R, map streetscape measures, and compare their distributions across road types.
+
+Each row represents one image, not one street segment. The four images from a segment share an `edge_id` but have different `img_id` values.
+
+## Join the Colab results to the sampled points 
+
+Use the GeoJSON saved in the GSV lab and the `seg_output.csv` downloaded from Colab. They must come from the same set of images.
+
+`img_id` uniquely identifies each image in both the sampled-point GeoJSON and the Colab CSV. Join the two files using this shared column. `inner_join()` keeps only locations with a matching segmentation result.
+
+```{r}
+# Load the sampled points.
+edges_heading <- st_read(????) # path to your "edges_heading.geojson" file
+
+# Read the segmentation output downloaded from Colab.
+seg_output <- read.csv(????) # path to your "seg_output.csv" file
+
+# Join them back to the `edges_heading` object that was used to download images.
+edges_seg_output <- edges_heading %>% 
+  inner_join(seg_output, by = "img_id")
+```
+
+
+  
+The category columns contain pixel counts predicted by the model. For example, `sidewalk` is the number of pixels classified as sidewalk in that image. Look at the first few rows: which categories occupy the most pixels?
+
+```{r}
+head(edges_seg_output)
+```
+
+
+## Calculate percentages of building, sky, road, and sidewalk
+
+
+To calculate each category's percentage, divide its pixel count by the total number of pixels in the model's output mask and multiply by 100. What is the total pixel count?
+
+> Use the model's output mask size, not the input image size, to determine the total pixel count. Look at the pretrained model's name in the Colab script for a hint! Another way to find the total is to add the pixel counts across all 19 categories for one image in `seg_output`.
+
+```{r}
+total_pixels <- ????
+
+edges_seg_output %<>%
+  mutate(pct_building = building / total_pixels * 100,
+         pct_sky = sky / total_pixels * 100,
+         pct_road = road / total_pixels * 100,
+         pct_sidewalk = sidewalk / total_pixels * 100)
+```
+
+
+## Calculate Greenness
+
+For this exercise, we measure greenness as the combined percentage of pixels classified as `vegetation` and `terrain`. Add the two category counts, divide by the total number of pixels in the mask, and multiply by 100. This is an image-based proxy: terrain can include surfaces that are not green.
+```{r}
+edges_seg_output %<>%
+  mutate(pct_greenness = ????)
+
+# Map
+tm_basemap("OpenStreetMap") +
+  tm_shape(edges_seg_output) +
+  tm_dots(size = 0.7,
+          fill = "pct_greenness", 
+          fill.scale = tm_scale(values = c("darkgray", "yellow", "green", "darkgreen")))
+```
+
+
+  
+## Calculate the building-to-street ratio
+
+We define the building-to-street ratio as building pixels divided by the combined pixels classified as road, sidewalk, and car. We include car pixels because cars can obscure the roadway in street-view images. A value of 1 means equal pixel counts for buildings and these street categories; values above 1 mean more building pixels. **This image-based ratio is a proxy for the visual prominence of buildings relative to the street. It does not measure the physical ratio of building height to street width.**
+
+Calculate the street-pixel total, then divide the building count by that total. For this exercise, treat the building-to-street ratio as invalid if the street-pixel total is zero or the ratio exceeds 4.
+
+```{r}
+edges_seg_output %<>% 
+  mutate(street_pixels = ????,
+         b2s_ratio = ????) %>%
+  mutate(b2s_ratio = if_else(street_pixels == 0 | b2s_ratio > 4, NA_real_, b2s_ratio))
+
+tm_basemap("OpenStreetMap") +
+  tm_shape(edges_seg_output) +
+  tm_dots(size = 0.7,
+          fill = "b2s_ratio", 
+          fill.scale = tm_scale(values = c("#EED8AE", "#C4A484", "#8B5A2B", "brown")))
+```
+
+
+  
+## Violin plots comparing the segmentation results by type of road
+
+How do the distributions differ across road types? The red point marks the mean for each road type.
+
+Use `pivot_longer()` to collect the six measures in a `variable` column and their observations in a `value` column, as in previous labs. Map road type to `x` and the measure to `y`, then add the violin plot. `coord_flip()` places road types vertically. Each panel has its own numeric scale, so compare road types within a panel rather than widths or distances across panels.
+
+```{r warning=F, fig.width=10, fig.height=12}
+edges_seg_output %<>%
+  filter(highway %in% c("residential", "tertiary", "secondary",
+                        "primary", "trunk", "motorway")) %>%
+  mutate(highway = factor(highway, levels = c("residential", "tertiary", "secondary",
+                                              "primary", "trunk", "motorway")))
+edges_seg_output %>%
+  pivot_longer(cols = c(b2s_ratio, pct_building, pct_greenness,
+                        pct_road, pct_sidewalk, pct_sky),
+               names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = ????, y = ????)) +
+  geom_????(fill = "#c7ffd6", na.rm = TRUE) +
+  stat_summary(fun = mean, geom = "point", size = 1.2, color = "red", na.rm = TRUE) +
+  coord_flip() +
+  theme_bw() +
+  facet_wrap(~variable, scales = "free_x", nrow = 3,
+             labeller = as_labeller(c(
+               b2s_ratio = "Building-to-street ratio",
+               pct_building = "Building (%)",
+               pct_greenness = "Greenness (%)",
+               pct_road = "Road (%)",
+               pct_sidewalk = "Sidewalk (%)",
+               pct_sky = "Sky (%)"))) +
+  labs(x = "Road type", y = "Image percentage / building-to-street ratio")
+```
+
+
+Think about:  
+
+* Which differences across road types stand out? Do they match what you expected?
+* What can these image-based measures tell us about a streetscape, and what do they leave out?
