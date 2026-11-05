@@ -1,0 +1,281 @@
+---
+title: "Major Assignment 2: Comparing Streetscapes and Walkability"
+author: "Your name"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+    code_folding: show
+---
+
+<style type="text/css">
+  body{
+  font-family: Arial;
+  }
+</style>
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+# Load the packages used in your analysis.
+```
+
+# How to Use This Starter File
+
+Complete the blank code chunks, provide explanations where requested, and add code comments where necessary. Keep the existing code chunks and section headings. Use methods from class and the course labs; code needed to preserve your inputs is supplied.
+
+Work through the file in order:
+
+1. Fill in the data-preparation chunks marked `eval=FALSE` and run them manually in RStudio.
+2. Run `save-inputs` to save your sample, then complete image collection and Colab processing in Section 4.
+3. Complete the analysis and knit. Leave `eval=FALSE` in place: the report loads your saved inputs instead of resampling roads or downloading images again.
+
+Save this Rmd, `major2_inputs.rds`, and the downloaded `seg_output.csv` in the same project folder. Use a `downloaded_image` subfolder for the JPG files. Open an RStudio project in that folder so relative paths work both interactively and when knitting. Do not include private credentials in the document.
+
+# Assignment Overview
+
+Select two Census tracts that you expect to differ in walkability. Compare their streetscapes using images randomly sampled from each road network. Then compare the tracts within road classes represented in both samples. Does your interpretation change when you compare similar kinds of roads?
+
+The labels "More walkable" and "Less walkable" describe your initial expectations, not a conclusion established by the model. Image composition captures only some aspects of walkability.
+
+# Analysis Settings and Sampling Rules
+
+- Choose exactly two different Census tracts within Fulton or DeKalb County, Georgia: one you expect to be more walkable and one you expect to be less walkable. Use 2024 tract geometry; the 2024 ACS 5-year methods from the labs can provide it. Demographic estimates are not required.
+- Include `primary`, `secondary`, `tertiary`, and `residential` roads. Exclude other OSM classes, including connector roads.
+- Clean undirected networks using the OSM lab methods. When smoothing, preserve road-class changes with `require_equal = "highway"` and retain attributes with `summarise_attributes = "first"`.
+- An eligible segment must be at least 300 feet (91.44 meters) long. Keep eligible segments whole; do not clip them at the tract boundary.
+- Randomly sample up to 100 eligible segments per tract. Use all eligible segments if fewer than 100 are available. Use the fixed seed below and a consistent ordering before sampling.
+- Sample across all eligible roads in each tract, not separately within road classes. Differences in road composition are part of the comparison.
+- Collect two images per segment at its midpoint, looking toward each end of the segment. Use the lab's settings: 640 by 640 pixels, `fov=90`, and `pitch=0`.
+- Use complete image pairs for segment-level comparisons. Do not replace missing images or measurements with zeros or draw replacement segments after seeing the results.
+
+```{r analysis-settings}
+local_crs <- 32616 # PCS / WGS84 / UTM 16N
+sampling_seed <- 2026
+```
+
+# 1. Select Two Tracts
+
+Download tract geometry and choose one tract you expect to be more walkable and another you expect to be less walkable. Your choices can reflect personal experience, a preliminary map review, or another stated reason. 
+
+Create `tracts`, an `sf` object with two polygon features and columns `GEOID` and `tract_label`. `GEOID` identifies the tract; `tract_label` records your initial walkability expectation -- use the labels `"More walkable"` and `"Less walkable"` throughout the analysis.
+
+```{r choose-tracts, eval=FALSE}
+# Download the tract geometry and select the two tracts.
+
+# Assign tract labels and transform to local_crs for spatial calculations.
+```
+
+Briefly explain your choices and what streetscape differences you expect to find (no more than 100 words).
+
+**Your explanation:**
+
+# 2. Prepare and Sample the Road Networks
+
+For each tract:
+
+1. Download the selected road classes using the tract's bounding box and clean the network using the lab methods.
+2. Calculate segment lengths. Keep whole segments at least 91.44 meters long whose midpoints fall inside the tract.
+3. Inspect the number of eligible segments by road class.
+4. Use `sampling_seed` and a consistent row order to sample up to 100 segments across all eligible road classes. Use all segments if fewer than 100 are eligible.
+
+Combine the two samples into `edges`, an `sf` object of LINESTRING features in `local_crs`. Keep `tract_label`, `GEOID`, `highway`, and `length` (meters). Assign a unique `edge_id` to each segment across the combined sample.
+
+```{r prepare-roads, eval=FALSE}
+# Download and clean the road networks for the two tracts.
+
+# Calculate lengths and retain segments with eligible midpoints and lengths.
+
+# Inspect eligible counts before sampling.
+
+# Use sampling_seed to randomly sample up to 100 segments per tract.
+
+# Combine the samples and assign unique edge IDs.
+```
+
+# 3. Prepare the Image Locations and Headings
+
+Adapt `getHeading()` from the GSV lab to take one projected LINESTRING and return two midpoint views. Sample points at 0.48, 0.50, and 0.52 along the segment. From the midpoint (0.50), calculate headings toward the other two points, looking toward each end of the segment.
+
+Return two rows with `type` (`"mid1"` and `"mid2"`), `X`, `Y`, and `heading`. Use the midpoint coordinates for both rows and express headings from 0 to less than 360 degrees.
+
+```{r define-heading, eval=FALSE}
+getHeading <- function(line) {
+  # Locate the midpoint and the nearby points used for heading calculations.
+
+  # Calculate both viewing directions and return their locations and headings.
+}
+```
+
+Apply the function to `edges` and create `edges_heading`. Create points using `local_crs`, and transform them to EPSG:4326. Update `X` and `Y` to longitude and latitude after transforming. Assign unique `img_id` values across both tracts. Colab extracts the image ID from the filename and preserves it in the CSV.
+
+`edges_heading` must have two POINT rows per sampled segment and contain `edge_id`, `img_id`, `tract_label`, `GEOID`, `highway`, `type`, `X`, `Y`, and `heading`.
+
+```{r prepare-image-locations, eval=FALSE}
+# Apply getHeading() and attach the segment attributes.
+
+# Transform the points, update longitude/latitude, and assign image IDs.
+```
+
+Run the supplied save chunk manually after preparing your sample. If you change the tracts or sampling before collecting images, regenerate and save the inputs together. Once image collection starts, keep the IDs fixed.
+
+```{r save-inputs, eval=FALSE}
+# Provided: run once after preparing your inputs.
+saveRDS(
+  list(tracts = tracts, edges = edges, edges_heading = edges_heading),
+  "major2_inputs.rds"
+)
+```
+
+```{r load-inputs}
+# Provided: restore the same inputs when knitting.
+saved_inputs <- readRDS("major2_inputs.rds")
+tracts <- saved_inputs$tracts
+edges <- saved_inputs$edges
+edges_heading <- saved_inputs$edges_heading
+
+stopifnot(nrow(tracts) == 2, !anyDuplicated(tracts$GEOID))
+stopifnot(setequal(tracts$tract_label, c("More walkable", "Less walkable")))
+stopifnot(!anyNA(edges$edge_id), !anyDuplicated(edges$edge_id))
+stopifnot(nrow(edges_heading) == 2 * nrow(edges))
+stopifnot(!anyNA(edges_heading$img_id), !anyDuplicated(edges_heading$img_id))
+stopifnot(!anyNA(edges_heading$edge_id), !anyNA(edges_heading$type))
+stopifnot(setequal(edges_heading$edge_id, edges$edge_id))
+
+# Each sampled segment must have exactly one view of each type.
+view_counts <- edges_heading %>%
+  sf::st_drop_geometry() %>%
+  dplyr::group_by(edge_id) %>%
+  dplyr::summarise(
+    n_views = dplyr::n(),
+    n_mid1 = sum(type == "mid1"),
+    n_mid2 = sum(type == "mid2"),
+    .groups = "drop"
+  )
+stopifnot(all(view_counts$n_views == 2L),
+          all(view_counts$n_mid1 == 1L),
+          all(view_counts$n_mid2 == 1L))
+```
+
+Create an interactive map showing both selected tracts with clearly identified tract labels. Include this map in the knitted report.
+
+```{r map-tracts}
+# Map the selected tract polygons and identify the two tracts.
+```
+
+# 4. Download Images and Run Colab
+
+Adapt `getImage()` from the GSV lab to download one image from one row of `edges_heading`:
+
+1. Extract `type`, `img_id`, `edge_id`, and `heading`. Format `location` as latitude,longitude (`Y,X`).
+2. Read your Google API key from its environment variable and construct `request` using the lab's Street View Static API endpoint and image settings.
+3. Set `fpath` to the supplied filename inside `downloaded_image`.
+
+The filename and download commands are provided below.
+
+```{r define-image-download}
+getImage <- function(iterrow) {
+  # Extract row values, format location and heading, and construct the request URL.
+
+  # Provided filename: keep img_id as the first number in the filename.
+  fname <- glue::glue("GSV-img_{img_id}-eid_{edge_id}-type_{type}.jpg")
+
+  # Create fpath by combining the output folder with fname.
+
+  # Provided: skip an existing file rather than request it again.
+  if (!file.exists(fpath)) {
+    download.file(request, fpath, mode = "wb", quiet = TRUE)
+    Sys.sleep(1)
+  }
+}
+```
+
+Run the supplied download chunk manually, keeping `eval=FALSE`. Inspect the images and remove gray "no imagery" placeholders or invalid files before running Colab. Do not change or reuse image IDs to fill gaps. Contact me if technical problems prevent you from completing collection or processing.
+
+```{r download-images, eval=FALSE}
+# Provided: run manually, not when knitting.
+dir.create("downloaded_image", showWarnings = FALSE)
+for (i in seq_len(nrow(edges_heading))) {
+  getImage(edges_heading[i, ])
+}
+```
+
+Zip the image folder as `gsv_images.zip`. Use the Colab notebook shared for the computer-vision lab (https://colab.research.google.com/drive/1s0HiZIwjke-xtmHwzFmFp6PJrNkysoy9), set the extracted image-folder path, run segmentation on all images, and download `seg_output.csv` to your project folder. Running the supplied Python is required; writing Python or changing the model is not assessed. Do not include the notebook's demonstration outputs or individual image predictions in this report.
+
+# 5. Join Results and Create Segment-Level Measures
+
+Read `seg_output.csv` and join it to `edges_heading` using the shared `img_id` column. Create `image_results`, with one row per matching image and the original segment and tract attributes.
+
+Determine the total number of pixels in the output mask from Colab or by summing all category counts for one image, as in the lab. Use that total to calculate these six image-level measures. As in the lab, the five `pct_*` measures are percentages from 0 to 100; multiply the pixel fractions by 100 and label their plots and tables accordingly. The building-to-street ratio is not a percentage:
+
+- `pct_building`: (building pixels / total pixels) * 100.
+- `pct_sky`: (sky pixels / total pixels) * 100.
+- `pct_road`: (road pixels / total pixels) * 100.
+- `pct_sidewalk`: (sidewalk pixels / total pixels) * 100.
+- `pct_greenness`: ((vegetation pixels + terrain pixels) / total pixels) * 100.
+- `b2s_ratio`: building pixels divided by road + sidewalk + car pixels. Apply the lab's rule: set the ratio to `NA_real_` when the street-pixel total is zero, or the ratio exceeds 4. Apply this rule to each image before averaging the views.
+
+```{r join-image-results}
+# Read the CSV, join image IDs to locations, and calculate image-level measures.
+```
+
+Create `segment_results`, an `sf` object with one midpoint POINT per segment. Keep only segments with both views (`mid1` and `mid2`) and valid values for all six measures in each view (no missing or infinite values). Keep excluded images in `image_results`.
+
+Average each image-level measure across the segment's two views. In particular, average the two image-level building-to-street ratios rather than calculate a new ratio from pooled counts. Keep `edge_id`, `GEOID`, `tract_label`, `highway`, and the six measure names. Drop geometry before grouping and summarizing measurements, then join the summary back to one midpoint per segment.
+
+```{r summarize-segments}
+# Identify complete pairs with valid measurements.
+
+# Average the two views within each segment and restore one midpoint geometry.
+```
+
+# 6. Compare the Two Tracts Overall
+
+Use `segment_results` to create:
+
+1. **Interactive maps:** Map sidewalk percentage, greenness percentage, and building-to-street ratio. For each measure, show both tracts together or in two separate maps. Use the same color scale for both tracts and include tract boundaries, labels, and legends.
+2. **Boxplots:** Create one figure with six panels, one per measure. Put `tract_label` on the x-axis and the measure on the y-axis, giving two boxes per panel. Use readable panel titles. Each panel may have its own y-axis scale, shared by both tracts.
+3. **Summary table:** Create and display `tract_summary` with one row per tract. Include the sampled segment count from `edges`, the included segment count from `segment_results`, and the mean of each of the six measures for included segments.
+
+If a tract has no valid pairs, report zero included segments and `NA` means. Show the available results and explain any comparisons you cannot make. If neither tract has valid pairs, skip the measure maps and boxplots. Keep the code chunks and required columns in empty result objects.
+
+```{r map-streetscape-measures}
+# Map the three measures and make the two tracts easy to compare.
+```
+
+```{r plot-overall-comparison}
+# Compare all six segment-level measures between tracts.
+```
+
+```{r summarize-tracts}
+# Display sampled and included segment counts and mean measures by tract.
+```
+
+# 7. Examine Road Composition and Compare Shared Classes
+
+Create and display `road_composition` from `edges`, using the original sample before exclusions. For each tract and road class, report the segment count and its proportion of that tract's sampled segments. Note any of the four selected road classes missing from a tract's sample; rows for absent classes are optional.
+
+Using `segment_results`, keep road classes represented in both tracts. Create one figure with six panels, one for each measure. In each panel, put road class on the x-axis and the measure on the y-axis. For each road class, show side-by-side boxplots for "More walkable" and "Less walkable," using different colors for `tract_label`. Each panel may use its own y-axis scale, but both tracts must share the same scale within that panel.
+
+Also report the number of included segments by tract and road class in a table. Note any comparisons based on very few segments. If no road classes are shared, explain this and skip the figure.
+
+```{r compare-road-classes}
+# Summarize sampled road-class counts and proportions within each tract.
+
+# Identify shared classes in segment_results and report their included counts.
+
+# Compare the tracts within shared road classes for all six measures.
+```
+
+## Findings
+
+In no more than 200 words, answer:
+
+- Do the overall results support your initial walkability expectations?
+- How does the mix of sampled road classes differ between the tracts?
+- Does comparing the tracts within the same road classes change your interpretation?
+
+If a comparison is unavailable, explain why and what you can conclude from the available results.
+
+**Your findings:**
+
