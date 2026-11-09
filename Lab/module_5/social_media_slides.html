@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="author" content="Uijeong “UJ” Hwang" />
     <meta name="date" content="2026-11-09" />
-    <script src="libs/header-attrs-2.29/header-attrs.js"></script>
+    <script src="libs/header-attrs-2.31/header-attrs.js"></script>
     <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
     <link rel="stylesheet" href="assets/sydney-fonts.css" type="text/css" />
     <link rel="stylesheet" href="assets/sydney.css" type="text/css" />
@@ -378,7 +378,7 @@ Like we did in the Computer Vision module, we will use a pretrained model to est
 
 Try: **“Great, another canceled train.”**
 
-Run the model on your computer using the [sentiment demo notebook](https://colab.research.google.com/drive/16_evF7XyWil0gfZrsUm0cLQrCxiKi9LY?usp=sharing). No paid inference service is needed.
+Run the model using this [demo notebook](https://colab.research.google.com/drive/16_evF7XyWil0gfZrsUm0cLQrCxiKi9LY?usp=sharing).
 
 
 ---
@@ -393,8 +393,6 @@ A topic model finds groups of words that tend to appear together across posts.
 | ramp · elevator · stairs | Accessibility |
 
 The model finds word patterns. **We read the posts and name the topics.**
-
-A post can discuss more than one topic—for example, a late bus with a broken ramp.
 
 ---
 ## YouTube Data API
@@ -532,10 +530,10 @@ if (length(response$items) &gt; 0) print(response$items[[1]]$snippet$topLevelCom
 <style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
 <script src="assets/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
-"highlightStyle": "github",
-"highlightLines": true,
-"countIncrementalSlides": false,
-"ratio": "16:9"
+  "highlightStyle": "github",
+  "highlightLines": true,
+  "countIncrementalSlides": false,
+  "ratio": "16:9"
 });
 if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
   window.dispatchEvent(new Event('resize'));
