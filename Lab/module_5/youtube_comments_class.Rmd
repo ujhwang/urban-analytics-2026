@@ -1,0 +1,439 @@
+---
+title: "Getting & Processing YouTube Comments"
+author: 'Uijeong "UJ" Hwang'
+date: '2026-11-16'
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+---
+
+<style type="text/css">
+body { font-family: Arial; }
+</style>
+
+```{r, message=F, warning=F}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+if (.Platform$OS.type == "windows") {
+  Sys.setlocale("LC_CTYPE", ".UTF-8")
+}
+
+library(tidyverse)
+library(magrittr)
+library(tidytext)
+library(httr2)
+library(wordcloud2)
+library(igraph)
+library(ggraph)
+library(textstem)
+library(topicmodels)
+library(broom)
+```
+
+> **Disclaimer:** YouTube comments let us examine how viewers respond to videos on a wide range of topics, but they do not represent the general public. Comments may also contain offensive language or personal information.
+
+# 1. Collect YouTube comments
+
+## 1-1. Request one page of comments
+
+In this lab, we use [Atlanta: How To Ruin A City](https://www.youtube.com/watch?v=-ljG1ow2HcE), which examines Atlanta's urban development and transportation problems. You can use the same video, but I highly recommend choosing a video you like.
+
+A YouTube URL contains a video ID after `v=`. For example, the video ID in `https://www.youtube.com/watch?v=-ljG1ow2HcE` is `-ljG1ow2HcE`.
+
+The `commentThreads.list` endpoint returns up to 100 top-level comments per request. We can choose how comments are ordered:
+
+- `order = "time"` returns the newest comments first. A limited sample therefore emphasizes recent responses.
+- `order = "relevance"` uses YouTube's algorithmic ranking rather than chronological order or like count alone. It may reflect signals such as likes, replies, and creator activity, but YouTube does not disclose the exact criteria or weights.
+
+We use `order = "relevance"` in this lab. The choice of ordering affects which comments enter the dataset when we stop after a fixed number of comments.
+
+Before retrieving thousands of comments, test the API request with just three comments.
+
+```{r}
+api_key <- Sys.getenv("GOOGLE_API_KEY") # You may need to change this
+video_id <- "-ljG1ow2HcE"
+
+test_response <- request("https://www.googleapis.com/youtube/v3/commentThreads") %>%
+  req_url_query(
+    part = "snippet",
+    videoId = video_id,
+    maxResults = ????,
+    order = "????",
+    textFormat = "plainText",
+    key = api_key
+  ) %>%
+  req_perform() %>%
+  resp_body_json()
+
+length(test_response$items)
+```
+
+
+The response is nested. Convert the test results into a table, then get a glimpse of the columns and their values.
+
+```{r}
+test_comments <- map_dfr(test_response$items, function(item) {
+  comment <- item$snippet$topLevelComment
+  snippet <- comment$snippet
+
+  tibble(
+    video_id = video_id,
+    comment_id = comment$id,
+    text = snippet$textDisplay,
+    published_at = snippet$publishedAt,
+    like_count = snippet$likeCount,
+    reply_count = item$snippet$totalReplyCount
+  )
+})
+
+????(test_comments)
+```
+
+
+## 1-2. Retrieve multiple pages
+
+When another page is available, the response includes a `nextPageToken`. The function below continues requesting pages until it reaches `max_comments` or no additional page is available. The function retrieves top-level comments only; it does not retrieve every reply.
+
+```{r}
+get_youtube_comments <- function(video_id, api_key, max_comments = 1000) {
+  comments <- tibble()
+  page_token <- NULL
+
+  while (nrow(comments) < max_comments) {
+    api_request <- request("https://www.googleapis.com/youtube/v3/commentThreads") %>%
+      req_url_query(
+        part = "snippet",
+        videoId = video_id,
+        maxResults = min(100, max_comments - nrow(comments)),
+        order = "????",
+        textFormat = "plainText",
+        key = api_key
+      )
+
+    if (!is.null(page_token)) {
+      api_request %<>% req_url_query(pageToken = page_token)
+    }
+
+    body <- api_request %>% req_perform() %>% resp_body_json()
+
+    page <- map_dfr(body$items, function(item) {
+      comment <- item$snippet$topLevelComment
+      snippet <- comment$snippet
+
+      tibble(
+        video_id = video_id,
+        comment_id = comment$id,
+        text = snippet$textDisplay,
+        published_at = snippet$publishedAt,
+        like_count = snippet$likeCount,
+        reply_count = item$snippet$totalReplyCount
+      )
+    })
+
+    comments <- bind_rows(comments, page) %>%
+      distinct(comment_id, .keep_all = TRUE)
+    page_token <- body$nextPageToken
+
+    if (is.null(page_token) || nrow(page) == 0) break
+  }
+
+  comments %>% slice_head(n = max_comments)
+}
+```
+
+
+Use the function to collect up to 1,000 top-level comments from the video. You may increase `max_comments` if you would like a larger sample. **Each request costs 1 quota unit, so collecting 1,000 comments typically costs about 10 units, while collecting 10,000 comments costs about 100 units. The default daily quota is 10,000 units.** The comment count displayed on YouTube can include replies, so it may differ from the number of top-level comments retrieved here. ([YouTube Data API documentation](https://developers.google.com/youtube/v3/docs/commentThreads/list); [quota costs](https://developers.google.com/youtube/data/determine_quota_cost))
+
+```{r}
+youtube_comments <- get_youtube_comments(video_id, api_key, max_comments = 1000)
+
+write_csv(youtube_comments, "youtube_comments.csv")
+```
+
+Keep `youtube_comments.csv` saved in your working folder. You will use this file in the next lab session on sentiment analysis.
+
+The remaining sections read the saved file, so you can rerun the analysis without collecting comments again.
+
+```{r, include=F}
+youtube_comments <- read_csv("youtube_comments.csv", show_col_types = FALSE)
+```
+
+# 2. Inspect and clean the data
+
+## 2-1. Inspect the comments
+
+Continue with the comments you collected above. Each row represents one top-level comment. Inspect the columns and the number of comments collected.
+
+```{r}
+????(select(youtube_comments, -text))
+nrow(youtube_comments)
+```
+
+
+Inspect the five comments with the most likes.
+
+```{r}
+youtube_comments %>%
+  slice_max(????, n = 5, with_ties = FALSE) %>%
+  select(text, ????, reply_count) %>%
+  knitr::kable(format = "html", escape = TRUE)
+```
+
+
+## 2-2. Clean the text
+
+Remove URLs and extra whitespace while preserving word order. `str_squish()` removes whitespace at the beginning and end of each comment and replaces repeated whitespace within the text (including spaces, tabs, and line breaks) with a single space.
+
+```{r}
+youtube_comments %<>%
+  mutate(text = text %>%
+           str_remove_all("https?://\\S+") %>%
+           str_????())
+```
+
+
+## 2-3. Tokenize and count words
+
+Tokenization separates text into smaller units. Use `tidytext::unnest_tokens()` to turn each comment into individual words. Then, examine the 15 most frequent words before removing stop words.
+
+```{r}
+comment_words <- youtube_comments %>%
+  ????(word, text, token = "words")
+
+comment_words %>%
+  count(????, sort = TRUE) %>%
+  slice_head(n = 15) %>%
+  knitr::kable(format = "html", escape = TRUE)
+```
+
+
+## 2-4. Remove stop words and lemmatize
+
+Common words such as "the" and "and" can dominate the counts without telling us much about the discussion. Remove stop words and retain alphabetic tokens longer than two characters before examining the remaining words. 
+
+> Which type of join keeps rows from the first table only when they have **no match** in the second table? Use that join to remove words matching the stop-word list.
+
+```{r}
+data("stop_words")
+
+comment_tokens <- comment_words %>%
+  ????(stop_words, by = "word") %>%
+  filter(str_detect(word, "^[a-z']+$"), str_length(word) > 2)
+
+comment_tokens %>%
+  count(????, sort = TRUE) %>%
+  slice_head(n = 15) %>%
+  knitr::kable(format = "html", escape = TRUE)
+```
+
+
+> After removing stop words, terms such as "MARTA," "traffic," "parking," and "racism" become more prominent, and these terms are more important for the discussion of transportation and race in Atlanta than common words like "the."
+
+Lemmatization combines word forms under a base form: for example, "cities" becomes "city" and "lived" becomes "live." Keep the original tokens in `comment_tokens` and create a separate `comment_lemmas` table with their base forms in `lemma`. `lemmatize_words()` uses a dictionary rather than the surrounding sentence, so some ambiguous words may be mapped incorrectly.
+
+After lemmatization, remove any resulting stop words, and let's examine the 15 most frequent lemmas.
+
+```{r}
+comment_lemmas <- comment_tokens %>%
+  mutate(lemma = ????(word)) %>%
+  ????(stop_words, by = c("lemma" = "word"))
+
+comment_lemmas %>%
+  count(lemma, sort = TRUE) %>%
+  slice_head(n = 15) %>%
+  knitr::kable(format = "html", escape = TRUE)
+```
+
+
+> Lemmatization combines useful variants such as "city" and "cities," but it also changes "parking" to "park." In this discussion, that change can blur the meaning of vehicle parking. We therefore use `comment_tokens` for the remaining analyses.
+
+
+# 3. Word clouds and n-grams
+
+## 3-1. Word clouds
+
+A word cloud makes frequently used words larger. The cloud below shows the 200 most frequent words in the comments. Visit the [wordcloud2 package documentation](https://cran.r-project.org/web/packages/wordcloud2/wordcloud2.pdf) and identify the function that creates a word cloud.
+
+```{r}
+word_counts <- comment_tokens %>%
+  count(????, sort = TRUE) %>%
+  slice_max(n, n = 200, with_ties = FALSE)
+
+????(word_counts, size = 1.3,
+           widgetsize = c(800, 550))
+```
+
+
+## 3-2. Bigrams
+
+A bigram is a pair of adjacent words, such as "public transit." Start from the cleaned comment text, before removing stop words, so the pairs preserve the original adjacency. Then remove pairs containing stop words or nonalphabetic tokens.
+
+```{r}
+comment_bigrams <- youtube_comments %>%
+  ????(bigram, text, token = "ngrams", n = ????) %>%
+  separate_wider_delim(bigram, " ", names = c("word1", "word2")) %>%
+  filter(!word1 %in% ????$word,
+         !word2 %in% ????$word) %>%
+  filter(str_detect(word1, "^[a-z']+$"),
+         str_detect(word2, "^[a-z']+$"))
+
+bigram_counts <- comment_bigrams %>%
+  count(word1, word2, sort = TRUE)
+
+bigram_counts %>%
+  slice_max(n, n = 10, with_ties = FALSE) %>%
+  unite(bigram, word1, word2, sep = " ") %>%
+  knitr::kable(format = "html", escape = TRUE)
+```
+
+
+The network below shows up to 50 bigrams occurring at least twice. Use `igraph::graph_from_data_frame()` to convert the word pairs and their counts into a graph, then use `ggraph()` to plot it. An arrow connects the first word to the second, and thicker edges indicate more frequent pairs. Longer paths through the graph do not necessarily represent complete observed phrases.
+
+```{r, fig.width=9, fig.height=7}
+bigram_edges <- bigram_counts %>%
+  filter(n >= 2) %>%
+  slice_max(n, n = 50, with_ties = FALSE)
+
+set.seed(1234)
+bigram_edges %>%
+  ????(directed = TRUE) %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(width = n), alpha = 0.5,
+                 arrow = grid::arrow(length = grid::unit(2, "mm")),
+                 end_cap = circle(3, "mm")) +
+  geom_node_point(color = "darkslategray4", size = 3) +
+  geom_node_text(aes(label = name), repel = TRUE) +
+  scale_edge_width(range = c(0.3, 2), guide = "none") +
+  theme_void()
+```
+
+
+## 3-3. Trigrams
+
+Trigrams preserve sequences of three adjacent words. As with bigrams, create them from the cleaned comment text before removing stop words. Compare the extra context they provide with the bigram results above.
+
+```{r}
+comment_trigrams <- youtube_comments %>%
+  ????(trigram, text, token = "ngrams", n = ????) %>%
+  separate_wider_delim(trigram, " ", names = c("word1", "word2", "word3")) %>%
+  filter(!word1 %in% ????$word,
+         !word2 %in% ????$word,
+         !word3 %in% ????$word) %>%
+  filter(str_detect(word1, "^[a-z']+$"),
+         str_detect(word2, "^[a-z']+$"),
+         str_detect(word3, "^[a-z']+$"))
+
+trigram_counts <- comment_trigrams %>%
+  count(word1, word2, word3, sort = TRUE)
+
+trigram_counts %>%
+  slice_max(n, n = 5, with_ties = FALSE) %>%
+  unite(trigram, word1, word2, word3, sep = " ") %>%
+  knitr::kable(format = "html", escape = TRUE)
+```
+
+
+The network uses up to 30 trigrams occurring at least twice. Each trigram contributes two adjacent pairs: word 1 to word 2, and word 2 to word 3. Thicker edges represent more frequent pairs within these selected trigrams. Longer paths through the network do not necessarily represent complete observed phrases.
+
+```{r, fig.width=9, fig.height=7}
+selected_trigrams <- trigram_counts %>%
+  filter(n >= 2) %>%
+  slice_max(n, n = 30, with_ties = FALSE)
+
+trigram_edges <- bind_rows(
+  selected_trigrams %>% transmute(from = word1, to = word2, n),
+  selected_trigrams %>% transmute(from = word2, to = word3, n)
+) %>%
+  group_by(from, to) %>%
+  summarize(n = sum(n), .groups = "drop")
+
+set.seed(1234)
+trigram_edges %>%
+  ????(directed = TRUE) %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(width = n), alpha = 0.5,
+                 arrow = grid::arrow(length = grid::unit(2, "mm")),
+                 end_cap = circle(3, "mm")) +
+  geom_node_point(color = "darkslategray4", size = 3) +
+  geom_node_text(aes(label = name), repel = TRUE) +
+  scale_edge_width(range = c(0.3, 2), guide = "none") +
+  theme_void()
+```
+
+
+# 4. Topic modeling
+
+LDA (Latent Dirichlet Allocation) finds recurring groups of words without predefined labels. Each comment is a **document**, and each topic is a distribution over words. A comment can contain a mixture of topics. Topic names are interpretations we make after examining the results.
+
+## 4-1. Fit the model
+
+The document-term matrix records each word's count within each comment. Count occurrences of each word within each comment, using the comment identifier and word columns. We retain comments with at least five tokens and terms occurring at least five times in the comments. Choose a value for `k`, the number of topics. The fixed seed makes the fit repeatable with the same input and software. Try several values of `k` (for example, 3, 4, 5, and 6) and compare how distinct and interpretable the topics are. There is no guarantee that more topics will produce a better result.
+
+```{r}
+model_tokens <- comment_tokens %>%
+  add_count(????, name = "document_words") %>%
+  filter(document_words >= 5) %>%
+  add_count(????, name = "term_frequency") %>%
+  filter(term_frequency >= 5)
+
+comment_dtm <- model_tokens %>%
+  count(????, ????) %>%
+  cast_dtm(document = ????, term = ????, value = n)
+
+comment_dtm
+```
+
+
+```{r}
+set.seed(1234)
+comment_lda <- LDA(comment_dtm, k = ????, control = list(seed = 1234))
+```
+
+
+## 4-2. Examine the topics
+
+`beta` is the probability of a word within a topic. The highest-probability words help us interpret each topic. Group the results by topic and select the five words with the highest `beta` values in each group. These are exploratory word patterns, not verified categories or measures of agreement with the video. Short comments, spam, and the choice of `k` can affect how coherent the topics appear.
+
+```{r, fig.width=9, fig.height=7}
+topic_terms <- tidy(comment_lda, matrix = "????") %>%
+  group_by(????) %>%
+  slice_max(????, n = 5, with_ties = FALSE) %>%
+  ungroup()
+
+topic_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, ????, fill = factor(????))) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  facet_wrap(~????, scales = "free") +
+  scale_x_reordered() +
+  labs(x = NULL, y = expression(????)) +
+  theme_minimal()
+```
+
+
+> How would you interpret each topic? Give each one a short label. Are any topics difficult to distinguish?
+
+## 4-3. Examine topic prominence
+
+`gamma` is the estimated proportion of a document associated with a topic. Because each document is one comment, the `gamma` output contains one row for every comment-topic combination, and the topic proportions for each comment sum to 1.
+
+To summarize topic prominence across the video, calculate the mean `gamma` for each topic. This gives every modeled comment equal weight, regardless of its length, like count, or reply count. The resulting topic prominence values also sum to 1.
+
+```{r, fig.width=8, fig.height=5}
+document_topics <- tidy(comment_lda, matrix = "????")
+
+topic_prominence <- document_topics %>%
+  group_by(????) %>%
+  summarize(prominence = mean(????), .groups = "drop")
+
+topic_prominence %>%
+  ggplot(aes(factor(????), prominence, fill = factor(????))) +
+  geom_col(show.legend = FALSE) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Topic", y = "Average topic proportion") +
+  theme_minimal()
+```
+
+
+> Topic prominence is surprisingly evenly distributed across the five topics in this example, but topic prominence is not inherently expected to be evenly distributed. If you chose a different video, is your result similarly balanced, or are some topics more prominent than others?
