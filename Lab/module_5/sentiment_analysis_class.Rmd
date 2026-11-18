@@ -1,0 +1,600 @@
+---
+title: "Sentiment Analysis"
+author: 'Uijeong "UJ" Hwang'
+date: '2026-11-18'
+output:
+  rmdformats::downcute:
+    downcute_theme: "chaos"
+---
+
+<style type="text/css">
+body { font-family: Arial; }
+table td { vertical-align: top; }
+</style>
+
+```{r, message=F, warning=F}
+knitr::opts_chunk$set(message = F, warning = F)
+
+if (.Platform$OS.type == "windows") {
+  Sys.setlocale("LC_CTYPE", ".UTF-8")
+}
+
+library(tidyverse)
+library(magrittr)
+library(tidytext)
+library(lubridate)
+library(syuzhet)
+library(sentimentr)
+library(wordcloud2)
+library(kableExtra)
+
+sentiment_colors <- c(negative = "#dc6666", neutral = "#7b8794", positive = "#3aae90")
+```
+
+Sentiment analysis estimates the emotional tone of text. We will compare a rule-based method with a pretrained deep-learning model and use the predictions to examine word use in YouTube comments.
+
+
+# 1. Load the comments
+
+Use the **`youtube_comments.csv`** saved in the previous lab. Each row is a top-level comment. We use `comment_id` to match predictions, `text` for sentiment and word analysis, and `like_count` and `reply_count` for engagement. Count how many comments received at least one like or reply.
+
+```{r}
+youtube_comments <- read_csv(????, show_col_types = F,
+                              col_types = cols(comment_id = col_character(),
+                                               published_at = col_character()))
+stopifnot(!anyNA(youtube_comments$comment_id),
+          !anyDuplicated(youtube_comments$comment_id))
+
+glimpse(select(youtube_comments, -text))
+youtube_comments %>%
+  summarize(comments = n(), comments_with_likes = ????(like_count ???? 0),
+            comments_with_replies = ????(reply_count ???? 0)) %>%
+  knitr::kable(format = "html", escape = T)
+```
+
+
+# 2. Classic sentiment analysis: Rule-based method
+
+## 2-1. Words and context
+
+A simple dictionary assigns scores to individual words. `sentimentr` also accounts for nearby negation and other words that modify sentiment. Compare the same sentences using the Bing dictionary through `syuzhet` and the context-adjusted `sentimentr` method, using `sentiment_by()` for the latter.
+
+```{r}
+example_text <- c(
+  "This project is a great idea.",
+  "This project is a terrible idea.",
+  "This project is not a great idea.",
+  "Great, another construction delay."
+)
+
+toy_scores <- ????(example_text) %>%
+  arrange(element_id)
+
+tibble(text = example_text,
+       bing = get_sentiment(example_text, method = "????"),
+       sentimentr = toy_scores$ave_sentiment) %>%
+  knitr::kable(format = "html", escape = T, digits = 3)
+```
+
+
+> How do the methods handle "not a great idea"? Does either recognize the possible sarcasm in "Great, another construction delay"?
+
+## 2-2. Score the YouTube comments
+
+Use `sentiment_by()` to calculate one dictionary score per comment.
+
+```{r}
+dictionary_scores <- ????(youtube_comments$text) %>%
+  transmute(comment_id = youtube_comments$comment_id[element_id],
+            sentiment_dictionary = ave_sentiment) %>%
+  mutate(dictionary_label = case_when(
+    sentiment_dictionary < -0.05 ~ "????",
+    sentiment_dictionary > 0.05 ~ "????",
+    TRUE ~ "neutral"
+  ),
+  dictionary_label = factor(dictionary_label,
+                            levels = c("negative", "neutral", "positive")))
+
+dictionary_scores %>%
+  ggplot(aes(sentiment_dictionary)) +
+  geom_histogram(bins = 30, fill = "#6289a8", color = "white") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(x = "Dictionary sentiment score", y = "Comments") +
+  theme_bw()
+```
+
+
+Negative scores indicate more negative language; positive scores indicate more positive language. A near-zero score can also occur when positive and negative language balance each other.
+
+## 2-3. Read examples from each dictionary category
+
+For this demonstration, scores below -0.05 are negative, scores above 0.05 are positive, and scores from -0.05 to 0.05 are neutral. Group by the dictionary-predicted label and use `slice_sample()` to randomly select three comments from each category.
+
+```{r}
+set.seed(1234)
+dictionary_examples <- youtube_comments %>%
+  ????(dictionary_scores, by = "comment_id") %>%
+  group_by(????) %>%
+  ????(n = 3) %>%
+  ungroup() %>%
+  select(????, sentiment_dictionary, text)
+
+dictionary_examples %>% knitr::kable(format = "html", escape = T, digits = 3)
+```
+
+
+> The comment `"design" is too gracious a word` receives a positive label, although it reads as criticism of the city's design. A positive word such as "gracious" can dominate a dictionary score even when the overall meaning is negative. Which other labels would you question?
+
+# 3. Modern sentiment analysis: Deep-learning method
+
+Open [Google Colab notebook](https://colab.research.google.com/drive/1x_HoQ5IeD-wNI7UomPpR0dzbkDbIUbj5?usp=sharing) and follow the instructions in the script: upload the same `youtube_comments.csv`, run the notebook, download `youtube_comments_sentiment.csv`, put it in your R working folder, and then come back to this R script.
+
+The notebook uses [Cardiff NLP's Twitter-RoBERTa sentiment model](https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest), a model developed for English-language social media text. It adds:
+
+- `sentiment_label`: negative, neutral, or positive
+- `sentiment_score`: confidence in the selected label -- NOT the intensity of the sentiment
+- `negative_score`, `neutral_score`, and `positive_score`: probabilities for all three labels
+- `model_token_count` and `text_truncated`: whether the comment exceeds the 512-token input limit
+
+
+## 3-1. Import and join the predictions
+
+Join the Colab predictions to the original comments using `comment_id`.
+
+```{r}
+transformer_results <- read_csv("youtube_comments_sentiment.csv", show_col_types = F,
+                               col_types = cols(comment_id = col_character())) %>%
+  select(comment_id, sentiment_label, sentiment_score,
+         negative_score, neutral_score, positive_score,
+         model_token_count, text_truncated)
+
+youtube_sentiment <- youtube_comments %>%
+  ????(dictionary_scores, by = "comment_id") %>%
+  ????(transformer_results, by = "comment_id") %>%
+  mutate(sentiment_label = factor(sentiment_label,
+                                 levels = c("negative", "neutral", "positive")),
+         month = floor_date(ymd_hms(published_at), "month"),
+         word_count = str_count(text, boundary("word")))
+```
+
+
+## 3-2. Initial checks
+
+Count comments by their deep-learning label and divide each count by the total to obtain proportions. Then inspect when the comments were published and their lengths.
+
+### The number of comments by sentiment
+
+```{r}
+youtube_sentiment %>%
+  count(????, name = "comments") %>%
+  mutate(proportion = comments / ????(comments)) %>%
+  knitr::kable(format = "html", escape = T, digits = 3)
+```
+
+
+```{r, fig.width=8, fig.height=4}
+youtube_sentiment %>%
+  ggplot(aes(sentiment_label, fill = sentiment_label)) +
+  geom_????(show.legend = F) +
+  scale_fill_manual(values = sentiment_colors) +
+  labs(x = "Predicted sentiment", y = "Comments") +
+  theme_bw()
+```
+
+
+### Monthly comment counts
+
+```{r, fig.width=9, fig.height=5}
+monthly_sentiment <- youtube_sentiment %>%
+  count(month, ????, name = "comments")
+
+monthly_sentiment %>%
+  ggplot(aes(month, comments, fill = sentiment_label)) +
+  geom_col() +
+  scale_fill_manual(values = sentiment_colors) +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  labs(x = NULL, y = "Comments", fill = "Predicted sentiment") +
+  theme_bw()
+```
+
+
+### Comment length by sentiment
+
+Comments vary in length, and longer comments have more room for explanation or mixed sentiment.
+
+```{r, fig.width=8, fig.height=5}
+youtube_sentiment %>%
+  ggplot(aes(sentiment_label, log1p(word_count), fill = sentiment_label)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.4, show.legend = F) +
+  geom_point(position = position_jitter(width = 0.15, height = 0, seed = 1234),
+             alpha = 0.25, size = 1) +
+  scale_fill_manual(values = sentiment_colors) +
+  labs(x = "Predicted sentiment", y = "log(Word count + 1)") +
+  theme_bw()
+```
+
+# 4. Compare the two methods
+
+Plot deep-learning labels on the x-axis and dictionary scores on the y-axis to compare the results from the two methods. Neither method provides ground truth, so examine the original comments when their classifications differ.
+
+```{r, fig.width=8, fig.height=5}
+youtube_sentiment %>%
+  ggplot(aes(sentiment_label, ????, fill = sentiment_label)) +
+  geom_violin(alpha = 0.5, show.legend = F) +
+  geom_boxplot(width = 0.15, outlier.shape = NA, show.legend = F) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_fill_manual(values = sentiment_colors) +
+  labs(x = "Deep-learning label", y = "Dictionary sentiment score") +
+  theme_bw()
+```
+
+
+The cross-tabulation shows the number of comments assigned to each pair of categories. Rows are dictionary labels and columns are deep-learning labels. Diagonal cells show agreement.
+
+```{r}
+agreement_counts <- youtube_sentiment %>%
+  count(????, ????, name = "comments", .drop = F) %>%
+  pivot_wider(names_from = ????, values_from = comments, values_fill = 0) %>%
+  mutate(???? = str_c("Dictionary: ", ????)) %>%
+  rename("Deep learning: negative" = negative,
+         "Deep learning: neutral" = neutral,
+         "Deep learning: positive" = positive)
+
+agreement_counts %>% knitr::kable(format = "html", escape = T)
+```
+
+
+> Do the two methods seem to generally agree?
+
+# 5. Validate predictions by reading comments
+
+Randomly select three comments from each deep-learning category. Read each comment before deciding whether its predicted label is reasonable.
+
+```{r}
+set.seed(1234)
+manual_examples <- youtube_sentiment %>%
+  group_by(????) %>%
+  ????(n = 3) %>%
+  ungroup() %>%
+  select(????, sentiment_score, text)
+
+manual_examples %>% knitr::kable(format = "html", escape = T, digits = 3)
+```
+
+
+> Would you assign the same labels? A negative comment about poor transit service may support transit investment: tone is not the same as a position on the subject.
+
+**From this point onward, all subsequent analyses use the deep-learning predictions.**
+
+# 6. Words in positive and negative comments
+
+## 6-1. Positive and negative word clouds
+
+Now that the comments have been classified, use `unnest_tokens()` to tokenize their text for word analysis. Which join removes rows matching the stop-word list? Word clouds show frequently used words, but not necessarily words uniquely associated with each sentiment category.
+
+```{r}
+data("stop_words")
+
+sentiment_tokens <- youtube_sentiment %>%
+  filter(sentiment_label %in% c("????", "????")) %>%
+  select(comment_id, sentiment_label, text) %>%
+  mutate(text = text %>% str_remove_all("https?://\\S+") %>% str_squish()) %>%
+  ????(word, text, token = "words") %>%
+  ????(stop_words, by = "word") %>%
+  filter(str_detect(word, "^[a-z']+$"), str_length(word) > 2)
+
+sentiment_words <- sentiment_tokens %>%
+  count(????, word, sort = TRUE)
+
+cloud_words <- sentiment_words %>%
+  filter(!word %in% c("atlanta", "city")) # Let's omit the two dominant words
+```
+
+
+### Positive comments
+
+```{r}
+positive_words <- cloud_words %>%
+  filter(sentiment_label == "????") %>%
+  select(word, n) %>%
+  slice_max(n, n = 200, with_ties = F)
+
+????(positive_words, size = 1.0, widgetsize = c(800, 550))
+```
+
+
+### Negative comments
+
+```{r}
+negative_words <- cloud_words %>%
+  filter(sentiment_label == "????") %>%
+  select(word, n) %>%
+  slice_max(n, n = 200, with_ties = F)
+
+????(negative_words, size = 1.0, widgetsize = c(800, 550))
+```
+
+
+## 6-2. Words more associated with either group
+
+Raw word counts depend on the number and length of comments. Compare the **proportion of comments mentioning each word** instead. Count each word at most once per comment, attach the total number of comments in its sentiment group, and divide by that total. Restrict the comparison to words mentioned in at least five comments overall. Subtract the negative-group proportion from the positive-group proportion.
+
+```{r}
+sentiment_totals <- youtube_sentiment %>%
+  filter(sentiment_label %in% c("????", "????")) %>%
+  count(????, name = "total_comments")
+
+word_prevalence <- sentiment_tokens %>%
+  distinct(comment_id, sentiment_label, word) %>%
+  count(????, word, name = "comments_with_word") %>%
+  ????(sentiment_totals, by = "sentiment_label") %>%
+  mutate(proportion = comments_with_word / ????) %>%
+  group_by(word) %>%
+  filter(????(comments_with_word) >= 5) %>%
+  ungroup() %>%
+  select(word, sentiment_label, proportion) %>%
+  pivot_wider(names_from = sentiment_label, values_from = proportion, values_fill = 0) %>%
+  mutate(difference = ???? - ????)
+
+word_comparison <- word_prevalence %>%
+  slice_max(abs(difference), n = 15, with_ties = F) %>%
+  arrange(desc(difference))
+
+difference_colors <- case_when(
+  word_comparison$difference > 0 ~ sentiment_colors["positive"],
+  word_comparison$difference < 0 ~ sentiment_colors["negative"],
+  TRUE ~ sentiment_colors["neutral"]
+)
+
+word_comparison %>%
+  knitr::kable(format = "html", escape = T, digits = 3) %>%
+  column_spec(4, color = difference_colors, bold = T)
+```
+
+
+> This is an association with the comment's overall label, not proof that the word itself expresses positive or negative sentiment.
+
+# 7. Sentiment and engagement
+
+## 7-1. Likes and replies
+
+Compare average engagement and the proportion of comments receiving at least one like or reply across the deep-learning categories.
+
+```{r}
+engagement_summary <- youtube_sentiment %>%
+  group_by(????) %>%
+  summarize(comments = n(), mean_likes = mean(like_count),
+            mean_replies = mean(reply_count),
+            share_with_likes = mean(like_count ???? 0),
+            share_with_replies = mean(reply_count ???? 0),
+            .groups = "drop")
+
+engagement_summary %>% knitr::kable(format = "html", escape = T, digits = 3)
+```
+
+
+> On average, positive comments received more likes in the chosen video. However, like counts are likely to be strongly right-skewed, so a few highly liked comments can have a large effect on the average.
+
+## 7-2. Distribution of likes
+
+Group comments into four categories based on their number of likes and compare their proportions within each sentiment category.
+
+```{r, fig.width=8, fig.height=5}
+youtube_sentiment %>%
+  mutate(likes_range = case_when(
+    like_count == 0 ~ "0 likes",
+    like_count < 10 ~ "1-9 likes",
+    like_count < 100 ~ "10-99 likes",
+    TRUE ~ "100+ likes"
+  ),
+  likes_range = factor(likes_range,
+                       levels = c("100+ likes", "10-99 likes", "1-9 likes", "0 likes"))) %>%
+  ggplot(aes(sentiment_label, fill = likes_range)) +
+  geom_????(position = "fill") +
+  scale_fill_brewer(palette = "Blues", direction = 1) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Predicted sentiment", y = "Proportion of comments", fill = "Likes") +
+  theme_bw()
+```
+
+
+> Are higher average likes associated with more comments receiving likes, or with a few highly liked comments? 
+
+# 8. Sentiment by keyword
+
+Choose keywords relevant to your video. A comment can appear under multiple keywords. The graph shows the sentiment distribution among comments mentioning each keyword; interpret keywords with small `n` cautiously. Match keywords regardless of capitalization and order them by the proportion of comments predicted positive.
+
+```{r}
+keywords <- c(
+  marta = "marta", transit = "transit", train = "train|trains", bus = "bus|buses",
+  traffic = "traffic", parking = "parking", highway = "highway|highways", car = "car|cars",
+  housing = "housing", suburbs = "suburb|suburbs", downtown = "downtown",
+  racism = "racism", crime = "crime", tax = "tax|taxes",
+  people = "people", beautiful = "beautiful", love = "love", fun = "fun",
+  live = "live", culture = "culture", parks = "park|parks",
+  opportunities = "opportunity|opportunities", walk = "walk|walks|walking",
+  beltline = "beltline", nice = "nice", vibrant = "vibrant"
+)
+
+keyword_comments <- imap_dfr(keywords, function(pattern, keyword) {
+  youtube_sentiment %>%
+    filter(str_detect(text, regex(str_c("\\b(", pattern, ")\\b"), ignore_case = ????))) %>%
+    mutate(keyword = keyword)
+})
+
+keyword_totals <- keyword_comments %>%
+  group_by(keyword) %>%
+  summarize(comments = n(),
+            positive_proportion = mean(sentiment_label == "????"),
+            .groups = "drop")
+
+keyword_comments %<>%
+  ????(keyword_totals, by = "keyword") %>%
+  mutate(keyword_label = str_c(keyword, " (n=", comments, ")"),
+         keyword_label = reorder(keyword_label, positive_proportion))
+```
+
+
+```{r, fig.width=9, fig.height=11}
+keyword_comments %>%
+  ggplot(aes(keyword_label, fill = sentiment_label)) +
+  geom_????(position = "fill") +
+  coord_flip() +
+  scale_fill_manual(values = sentiment_colors) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = NULL, y = "Proportion of comments", fill = "Predicted sentiment") +
+  theme_bw()
+```
+
+
+This analysis uses the sentiment of the entire comment, which may not be directed specifically at the keyword.
+
+> Which analysis tells you something useful about the comments?
+
+# 9. Sentence-level sentiment (Optional)
+
+## What if we analyze individual sentences instead of comments?
+
+So far, we have assigned one sentiment label to each comment. But what about a comment like *"I love the BeltLine. It sometimes gets too crowded, though"*? We could score the two sentences separately.
+
+| What we gain | What we lose or complicate |
+|---|---|
+| Keep positive and negative reactions within the same comment | Some sentences need the rest of the comment to make sense: "It is terrible" does not tell us what "it" refers to |
+| Look at the sentiment of sentences mentioning a keyword | Sentence splitting can get abbreviations and informal punctuation wrong |
+| More detail than a single comment-level label | Longer comments get more weight because they contain more sentences |
+
+## 9-1. Split and classify the sentences
+
+Use `unnest_tokens()` with `token = "sentences"` to split each comment. Number the sentences within each original comment, grouping by its comment ID.
+
+```{r}
+youtube_sentences <- youtube_comments %>%
+  select(comment_id, text) %>%
+  ????(sentence_text, text, token = "????", to_lower = F) %>%
+  filter(str_trim(sentence_text) != "") %>%
+  group_by(????) %>%
+  mutate(sentence_id = row_number()) %>%
+  ungroup() %>%
+  select(comment_id, sentence_id, sentence_text)
+
+write_csv(youtube_sentences, "youtube_sentences.csv")
+```
+
+
+Return to the same [Colab notebook](https://colab.research.google.com/drive/1x_HoQ5IeD-wNI7UomPpR0dzbkDbIUbj5?usp=sharing). In the sentence-analysis section, set `RUN_SENTENCE_ANALYSIS = True`, upload `youtube_sentences.csv`, and run the remaining cells using the model already loaded. Download `youtube_sentences_sentiment.csv` to your R working folder.
+
+## 9-2. Import and inspect the predictions
+
+Load the sentence-level predictions and examine how many sentences receive each label. Compare this distribution with the comment-level results in Section 3-2; the proportions now describe sentences rather than comments.
+
+```{r}
+sentence_sentiment <- read_csv("youtube_sentences_sentiment.csv", show_col_types = F,
+                               col_types = cols(comment_id = col_character())) %>%
+  mutate(sentiment_label = factor(sentiment_label,
+                                 levels = c("negative", "neutral", "positive")))
+
+sentence_sentiment %>%
+  count(????, name = "sentences") %>%
+  mutate(proportion = sentences / ????(sentences)) %>%
+  knitr::kable(format = "html", escape = T, digits = 3)
+```
+
+
+```{r, fig.width=8, fig.height=4}
+sentence_sentiment %>%
+  ggplot(aes(sentiment_label, fill = sentiment_label)) +
+  geom_????(show.legend = F) +
+  scale_fill_manual(values = sentiment_colors) +
+  labs(x = "Predicted sentiment", y = "Sentences") +
+  theme_bw()
+```
+
+
+> Compare the share of neutral predictions among comments with the share among sentences. Why might these proportions differ? How does splitting comments into sentences change what we are measuring?
+
+## 9-3. Revisit word clouds
+
+Create positive and negative word clouds using the sentence-level predictions. A mixed comment can now contribute words to both groups through different sentences. As in Section 6-1, omit "atlanta" and "city" from the clouds.
+
+```{r}
+sentence_words <- sentence_sentiment %>%
+  filter(sentiment_label %in% c("????", "????")) %>%
+  select(comment_id, sentence_id, sentiment_label, sentence_text) %>%
+  mutate(sentence_text = sentence_text %>%
+           str_remove_all("https?://\\S+") %>%
+           str_squish()) %>%
+  ????(word, sentence_text, token = "words") %>%
+  ????(stop_words, by = "word") %>%
+  filter(str_detect(word, "^[a-z']+$"), str_length(word) > 2,
+         !word %in% c("atlanta", "city")) %>%
+  count(????, word, sort = T)
+```
+
+
+### Positive sentences
+
+```{r}
+positive_sentence_words <- sentence_words %>%
+  filter(sentiment_label == "????") %>%
+  select(word, n) %>%
+  slice_max(n, n = 200, with_ties = F)
+
+????(positive_sentence_words, size = 1.0, widgetsize = c(800, 550))
+```
+
+
+### Negative sentences
+
+```{r}
+negative_sentence_words <- sentence_words %>%
+  filter(sentiment_label == "????") %>%
+  select(word, n) %>%
+  slice_max(n, n = 200, with_ties = F)
+
+????(negative_sentence_words, size = 1.0, widgetsize = c(800, 550))
+```
+
+
+> The POSITIVE-COMMENT word cloud in Section 6-1 included negative-sounding words such as "ruined." Now "ruined" appears in the NEGATIVE-SENTENCE word cloud, which seemingly makes more sense. What might explain the difference?
+
+## 9-4. Revisit sentiment by keyword
+
+Repeat the keyword analysis using sentence-level predictions. Keep the keyword order from Section 8 so the plots are easy to compare. Here, `n` counts sentences, and the denominator is keyword-mentioning sentences.
+
+```{r}
+keyword_sentences <- imap_dfr(keywords, function(pattern, keyword) {
+  sentence_sentiment %>%
+    filter(str_detect(sentence_text, regex(str_c("\\b(", pattern, ")\\b"), ignore_case = ????))) %>%
+    mutate(keyword = keyword)
+})
+
+keyword_order <- keyword_totals %>%
+  arrange(positive_proportion) %>%
+  pull(keyword)
+
+sentence_keyword_totals <- keyword_sentences %>%
+  count(keyword, name = "sentences") %>%
+  mutate(keyword = factor(keyword, levels = keyword_order)) %>%
+  arrange(keyword)
+
+keyword_sentences %<>%
+  ????(sentence_keyword_totals, by = "keyword") %>%
+  mutate(keyword_label = factor(str_c(keyword, " (n=", sentences, ")"),
+                               levels = str_c(sentence_keyword_totals$keyword,
+                                              " (n=", sentence_keyword_totals$sentences, ")")))
+```
+
+
+```{r, fig.width=9, fig.height=11}
+keyword_sentences %>%
+  ggplot(aes(keyword_label, fill = sentiment_label)) +
+  geom_????(position = "fill") +
+  coord_flip() +
+  scale_fill_manual(values = sentiment_colors) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = NULL, y = "Proportion of sentences", fill = "Predicted sentiment") +
+  theme_bw()
+```
+
+
+> Compare this plot with Section 8. Which keywords change most? Would reading only the keyword-containing sentence give you enough context to interpret its sentiment?
