@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>data_ethics_slides.knit</title>
+    <meta charset="utf-8" />
+    <script src="libs/header-attrs-2.32/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/sydney-fonts.css" type="text/css" />
+    <link rel="stylesheet" href="assets/sydney.css" type="text/css" />
+    <link rel="stylesheet" href="assets/inline-code.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+
+
+
+class: middle, inverse
+
+# Data Ethics
+.font100[
+Uijeong "UJ" Hwang
+
+2026-11-23
+]
+
+
+
+&lt;style&gt;
+.remark-slide-content {
+  font-size: 25px;
+  padding: 1.2em 2.3em 0.9em 2.3em;
+}
+.remark-slide-content h1 { font-size: 43px; }
+.remark-slide-content h2 { font-size: 33px; margin-bottom: 0.42em; }
+.remark-slide-content h3 {
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 0.4em;
+  margin-bottom: 0.25em;
+}
+.remark-slide-content p, .remark-slide-content li { line-height: 1.2; }
+.remark-slide-content ul, .remark-slide-content ol { margin-top: 0.25em; }
+.small { font-size: 20px; line-height: 1.16; }
+.citation { color: #666; font-size: 16px; line-height: 1.15; clear: both; }
+.chart { display: block; width: 100%; height: 420px; object-fit: contain; }
+.example-image {display:block; width:100%; height:340px; object-fit:contain;}
+.example-pair {display:flex; gap:24px; align-items:center; justify-content:center;}
+.example-pair img {max-width:48%; height:345px; object-fit:contain;}
+.remark-slide-content.large-visual {padding:0.7em 1.6em 0.6em;}
+.large-visual h2 {margin-top:0.25em;}
+.large-visual .example-image {height:455px;}
+.large-visual .citation {margin-top:8px;}
+
+.original-definition {font-size:21px; line-height:1.4; margin:0.5em 0 0.8em;}
+.original-hand {font-size:20px; line-height:1.4; margin-bottom:0.7em;}
+/* Shared grid rows keep labels and explanations aligned across all five slides. */
+.principles-layout {display:grid; grid-template-columns:45% 53%; grid-template-rows:repeat(9, 46px); column-gap:2%; margin-top:20px;}
+.principle-label {font-size:22px; line-height:1.15; padding-top:2px;}
+.principle-label.subprinciple {padding-left:28px; font-size:21px;}
+.principle-label.muted {color:#999;}
+.principle-label.selected {font-weight:700; color:#153d63;}
+.principle-explanation {font-size:17px; line-height:1.15; padding:2px 0 0 12px; border-left:3px solid #153d63; align-self:start;}
+.original-pii {font-size:21px;}
+.original-pii p, .original-pii li {line-height:1.3;}
+.remark-slide-content blockquote {
+  font-size: 20px;
+  line-height: 1.25;
+  margin: 0.7em 0;
+}
+.remark-slide-content .privacy-balance blockquote {font-size:26px; line-height:1.3;}
+.geolocation-slide .pull-left {width:38%; font-size:23px;}
+.geolocation-slide .pull-right {width:59%;}
+&lt;/style&gt;
+
+
+
+
+
+---
+
+
+## What is Data Ethics?
+
+&lt;div class="original-definition"&gt;&amp;quot;In the simplest terms, &lt;strong&gt;data&lt;/strong&gt; refer to factual information, such as measurements or statistics, used as a basis for reasoning, discussion, or calculation. &lt;strong&gt;Data Ethics &lt;/strong&gt;are the norms of behavior that &lt;u&gt;promote appropriate judgments and accountability when acquiring, managing, or using data&lt;/u&gt;, with the goals of &lt;u&gt;protecting civil liberties, minimizing risks to individuals and society, and maximizing the public good.&lt;/u&gt;&amp;quot; (Federal Data Strategy, 2020)&lt;/div&gt;
+
+.citation[[https://resources.data.gov/assets/documents/fds-data-ethics-framework.pdf](https://resources.data.gov/assets/documents/fds-data-ethics-framework.pdf)]
+
+
+
+---
+
+
+class: original-definition-pair
+
+## What is Data Ethics?
+
+&lt;div class="original-definition"&gt;&amp;quot;In the simplest terms, &lt;strong&gt;data&lt;/strong&gt; refer to factual information, such as measurements or statistics, used as a basis for reasoning, discussion, or calculation. &lt;strong&gt;Data Ethics &lt;/strong&gt;are the norms of behavior that &lt;u&gt;promote appropriate judgments and accountability when acquiring, managing, or using data&lt;/u&gt;, with the goals of &lt;u&gt;protecting civil liberties, minimizing risks to individuals and society, and maximizing the public good.&lt;/u&gt;&amp;quot; (Federal Data Strategy, 2020)&lt;/div&gt;
+
+.citation[[https://resources.data.gov/assets/documents/fds-data-ethics-framework.pdf](https://resources.data.gov/assets/documents/fds-data-ethics-framework.pdf)]
+
+&lt;div class="original-hand"&gt;&amp;quot;...more recently, recognition of the need for such ethical oversight has grown, mainly because of raised awareness of the &lt;strong&gt;potential and pervasiveness of big data, data science, and artificial intelligence&lt;/strong&gt;. Attention has shifted, from rather specialised concerns for informed consent in clinical trials, the preservation of anonymity in survey work, avoiding prohibited variables in insurance decisions, and so on, to much more &amp;quot;in-your-face&amp;quot; issues. These are matters such as selection bias leading to racist decisions, chatbots being gratuitously offensive, and questions of who is responsible when a driverless car crashes or data theft leads to fraud.&amp;quot; (Hand, 2018)&lt;/div&gt;
+
+.citation[[https://imstat.org/2018/12/14/hand-writing-right-legitimate-and-proper-the-new-world-of-data-ethics/](https://imstat.org/2018/12/14/hand-writing-right-legitimate-and-proper-the-new-world-of-data-ethics/)]
+
+
+
+---
+
+
+## Frameworks and Guidelines
+
+- **Data Ethics Framework (Federal Data Strategy)**  
+  Data Ethics Tenets (page 4): [https://resources.data.gov/assets/documents/fds-data-ethics-framework.pdf](https://resources.data.gov/assets/documents/fds-data-ethics-framework.pdf)
+
+- **General Data Protection Regulation (EU)**  
+  Article 5. Principles relating to processing of personal data: [https://gdpr-info.eu/art-5-gdpr/](https://gdpr-info.eu/art-5-gdpr/)
+
+- **GIS Code of Ethics (GIS Certification Institute)**  
+  Pages 2-4: [https://www.gisci.org/Ethics/Code-of-Ethics](https://www.gisci.org/Ethics/Code-of-Ethics)
+
+
+
+---
+
+
+class: original-principles
+
+## Key Ethical Principles
+
+&lt;div class="principles-layout"&gt;
+&lt;div class="principle-label " style="grid-row:1;grid-column:1"&gt;&amp;#8226; Privacy and Informed Consent&lt;/div&gt;
+&lt;div class="principle-label  subprinciple" style="grid-row:2;grid-column:1"&gt;&amp;#9702; Purpose Limitation&lt;/div&gt;
+&lt;div class="principle-label  subprinciple" style="grid-row:3;grid-column:1"&gt;&amp;#9702; Storage limitation&lt;/div&gt;
+&lt;div class="principle-label " style="grid-row:4;grid-column:1"&gt;&amp;#8226; Security and Confidentiality&lt;/div&gt;
+&lt;div class="principle-label " style="grid-row:5;grid-column:1"&gt;&amp;#8226; Transparency&lt;/div&gt;
+&lt;div class="principle-label " style="grid-row:6;grid-column:1"&gt;&amp;#8226; Data Quality and Integrity&lt;/div&gt;
+&lt;div class="principle-label " style="grid-row:7;grid-column:1"&gt;&amp;#8226; Fairness and Non-discrimination&lt;/div&gt;
+&lt;div class="principle-label " style="grid-row:8;grid-column:1"&gt;&amp;#8226; Accountability&lt;/div&gt;
+&lt;div class="principle-label " style="grid-row:9;grid-column:1"&gt;&amp;#8226; Beneficence&lt;/div&gt;
+&lt;/div&gt;
+
+
+
+---
+
+
+class: original-principles
+
+## Key Ethical Principles
+
+&lt;div class="principles-layout"&gt;
+&lt;div class="principle-label selected" style="grid-row:1;grid-column:1"&gt;&amp;#8226; Privacy and Informed Consent&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:1;grid-column:2"&gt;Individuals must control their personal data, which can only be collected and used with explicit, informed consent.&lt;/div&gt;
+&lt;div class="principle-label selected subprinciple" style="grid-row:2;grid-column:1"&gt;&amp;#9702; Purpose Limitation&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:2;grid-column:2"&gt;Data should only be used for the specific, agreed-upon purposes.&lt;/div&gt;
+&lt;div class="principle-label selected subprinciple" style="grid-row:3;grid-column:1"&gt;&amp;#9702; Storage limitation&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:3;grid-column:2"&gt;Data must be retained only as long as necessary for its purpose and then securely deleted or anonymized.&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:4;grid-column:1"&gt;&amp;#8226; Security and Confidentiality&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:5;grid-column:1"&gt;&amp;#8226; Transparency&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:6;grid-column:1"&gt;&amp;#8226; Data Quality and Integrity&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:7;grid-column:1"&gt;&amp;#8226; Fairness and Non-discrimination&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:8;grid-column:1"&gt;&amp;#8226; Accountability&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:9;grid-column:1"&gt;&amp;#8226; Beneficence&lt;/div&gt;
+&lt;/div&gt;
+
+
+---
+
+
+class: original-principles
+
+## Key Ethical Principles
+
+&lt;div class="principles-layout"&gt;
+&lt;div class="principle-label muted" style="grid-row:1;grid-column:1"&gt;&amp;#8226; Privacy and Informed Consent&lt;/div&gt;
+&lt;div class="principle-label muted subprinciple" style="grid-row:2;grid-column:1"&gt;&amp;#9702; Purpose Limitation&lt;/div&gt;
+&lt;div class="principle-label muted subprinciple" style="grid-row:3;grid-column:1"&gt;&amp;#9702; Storage limitation&lt;/div&gt;
+&lt;div class="principle-label selected" style="grid-row:4;grid-column:1"&gt;&amp;#8226; Security and Confidentiality&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:4;grid-column:2"&gt;Ensure data is protected from unauthorized access, breaches, and misuse, while sensitive information is shared only with authorized entities.&lt;/div&gt;
+&lt;div class="principle-label selected" style="grid-row:5;grid-column:1"&gt;&amp;#8226; Transparency&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:5;grid-column:2"&gt;Clearly communicate how data is collected, used, stored, and shared to foster trust.&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:6;grid-column:1"&gt;&amp;#8226; Data Quality and Integrity&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:7;grid-column:1"&gt;&amp;#8226; Fairness and Non-discrimination&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:8;grid-column:1"&gt;&amp;#8226; Accountability&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:9;grid-column:1"&gt;&amp;#8226; Beneficence&lt;/div&gt;
+&lt;/div&gt;
+
+
+
+---
+
+
+class: original-principles
+
+## Key Ethical Principles
+
+&lt;div class="principles-layout"&gt;
+&lt;div class="principle-label muted" style="grid-row:1;grid-column:1"&gt;&amp;#8226; Privacy and Informed Consent&lt;/div&gt;
+&lt;div class="principle-label muted subprinciple" style="grid-row:2;grid-column:1"&gt;&amp;#9702; Purpose Limitation&lt;/div&gt;
+&lt;div class="principle-label muted subprinciple" style="grid-row:3;grid-column:1"&gt;&amp;#9702; Storage limitation&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:4;grid-column:1"&gt;&amp;#8226; Security and Confidentiality&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:5;grid-column:1"&gt;&amp;#8226; Transparency&lt;/div&gt;
+&lt;div class="principle-label selected" style="grid-row:6;grid-column:1"&gt;&amp;#8226; Data Quality and Integrity&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:6;grid-column:2"&gt;Maintain accurate, complete, and reliable data for ethical and effective use.&lt;/div&gt;
+&lt;div class="principle-label selected" style="grid-row:7;grid-column:1"&gt;&amp;#8226; Fairness and Non-discrimination&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:7;grid-column:2"&gt;Data practices must avoid bias and ensure equitable treatment of all individuals or groups.&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:8;grid-column:1"&gt;&amp;#8226; Accountability&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:9;grid-column:1"&gt;&amp;#8226; Beneficence&lt;/div&gt;
+&lt;/div&gt;
+
+
+
+---
+
+
+class: original-principles
+
+## Key Ethical Principles
+
+&lt;div class="principles-layout"&gt;
+&lt;div class="principle-label muted" style="grid-row:1;grid-column:1"&gt;&amp;#8226; Privacy and Informed Consent&lt;/div&gt;
+&lt;div class="principle-label muted subprinciple" style="grid-row:2;grid-column:1"&gt;&amp;#9702; Purpose Limitation&lt;/div&gt;
+&lt;div class="principle-label muted subprinciple" style="grid-row:3;grid-column:1"&gt;&amp;#9702; Storage limitation&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:4;grid-column:1"&gt;&amp;#8226; Security and Confidentiality&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:5;grid-column:1"&gt;&amp;#8226; Transparency&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:6;grid-column:1"&gt;&amp;#8226; Data Quality and Integrity&lt;/div&gt;
+&lt;div class="principle-label muted" style="grid-row:7;grid-column:1"&gt;&amp;#8226; Fairness and Non-discrimination&lt;/div&gt;
+&lt;div class="principle-label selected" style="grid-row:8;grid-column:1"&gt;&amp;#8226; Accountability&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:8;grid-column:2"&gt;Organizations must take responsibility for complying with ethical principles and demonstrate adherence.&lt;/div&gt;
+&lt;div class="principle-label selected" style="grid-row:9;grid-column:1"&gt;&amp;#8226; Beneficence&lt;/div&gt;
+&lt;div class="principle-explanation" style="grid-row:9;grid-column:2"&gt;Ensure data practices maximize benefits while minimizing potential harm to individuals and society.&lt;/div&gt;
+&lt;/div&gt;
+
+
+
+---
+
+
+class: middle, inverse
+
+# Real-World Examples
+
+
+
+---
+
+
+class: large-visual
+
+## Strava Heatmap
+
+Fitness routes shared through Strava's activity heatmap.
+
+&lt;img src="assets/original_pptx/image2.png" style="display:block;width:100%;height:490px;object-fit:contain" alt="Fitness activity traces"&gt;
+
+
+
+---
+
+
+class: large-visual
+
+## Strava Heatmap
+
+Shared fitness routes revealed activity patterns around sensitive locations.
+
+&lt;img src="assets/original_pptx/image1.png" style="display:block;width:100%;height:490px;object-fit:contain" alt="Strava activity heatmap around a remote location"&gt;
+
+.citation[[https://www.theguardian.com/world/2018/jan/28/fitness-tracking-app-gives-away-location-of-secret-us-army-bases](https://www.theguardian.com/world/2018/jan/28/fitness-tracking-app-gives-away-location-of-secret-us-army-bases)]
+
+
+
+---
+
+
+class: large-visual
+
+## Target Predicts Pregnancy
+
+Reporting described how Target used shopping patterns to infer pregnancy and send targeted offers.
+
+&lt;img src="assets/original_pptx/image3.png" style="display:block;width:100%;height:420px;object-fit:contain" alt="Pregnancy-related promotional offers"&gt;
+
+.citation[[https://www.forbes.com/sites/kashmirhill/2012/02/16/how-target-figured-out-a-teen-girl-was-pregnant-before-her-father-did/](https://www.forbes.com/sites/kashmirhill/2012/02/16/how-target-figured-out-a-teen-girl-was-pregnant-before-her-father-did/)]
+
+
+
+---
+
+
+class: large-visual
+
+## Apple Card: Bias and Transparency
+
+Apple's credit card algorithm allegedly offered significantly lower credit limits to women, even with similar financial backgrounds to men.
+
+&lt;img src="assets/original_pptx/image4.jpeg" style="display:block;width:100%;height:420px;object-fit:contain" alt="News coverage of the Apple Card investigation"&gt;
+
+.citation[[https://www.youtube.com/watch?v=rD0hpPk92LY](https://www.youtube.com/watch?v=rD0hpPk92LY)]
+
+
+
+
+---
+
+
+class: large-visual
+
+## Facebook-Cambridge Analytica
+
+Facebook data collected through a personality-quiz app was used for political profiling beyond what many affected users expected or agreed to.
+
+&lt;img src="assets/original_pptx/image5.jpeg" style="display:block;width:100%;height:420px;object-fit:contain" alt="News interview with Mark Zuckerberg about Cambridge Analytica"&gt;
+
+.citation[[https://youtu.be/mrnXv-g4yKU](https://youtu.be/mrnXv-g4yKU)]
+
+
+
+---
+
+
+class: large-visual
+
+## Failure of Google Flu Trends
+
+Google Flu Trends overestimated flu outbreaks due to reliance on search data that reflected panic rather than actual cases.
+
+&lt;img src="assets/original_pptx/image6.png" style="display:block;width:100%;height:420px;object-fit:contain" alt="Google Flu Trends predictions compared with observed influenza surveillance data"&gt;
+
+.citation[[https://gking.harvard.edu/files/gking/files/0314policyforumff.pdf](https://gking.harvard.edu/files/gking/files/0314policyforumff.pdf)]
+
+
+
+---
+
+
+class: large-visual
+
+## NYC Taxi Dataset Controversy
+
+
+&lt;img src="assets/original_pptx/image7.png" style="display:block;width:100%;height:420px;object-fit:contain" alt="Reporting on privacy risks in released NYC taxi records"&gt;
+
+.citation[[https://www.theguardian.com/technology/2014/jun/27/new-york-taxi-details-anonymised-data-researchers-warn](https://www.theguardian.com/technology/2014/jun/27/new-york-taxi-details-anonymised-data-researchers-warn)]
+
+
+
+---
+
+
+class: large-visual
+
+## Biases in Big Data and AI
+
+A facial-analysis system can perform differently across demographic groups. Overall accuracy can hide those differences.
+
+&lt;img src="assets/original_pptx/image8.png" style="display:block;width:100%;height:420px;object-fit:contain" alt="Historical benchmark comparing gender-classification accuracy by skin tone and gender"&gt;
+
+.citation[[https://youtu.be/PWCtoVt1CJM](https://youtu.be/PWCtoVt1CJM)]
+
+
+---
+
+
+class: middle, inverse
+
+# Personally Identifiable Information
+
+
+
+---
+
+class: original-pii
+
+## Personally Identifiable Information (PII)
+
+According to US Department of Labor,
+
+* *PII is defined as any representation of information that permits the identity of an individual to whom the information applies to be reasonably inferred by either direct or indirect means.*
+
+--
+  
+  
+* PII is information:
+
+  - that **directly identifies** an individual (e.g., name, address, social security number or other identifying number or code, telephone number, email address, etc.) or
+
+  - by which an agency intends to identify specific individuals in conjunction with other data elements, i.e., **indirect identification**. (These data elements may include a combination of gender, race, birth date, geographic indicator, and other descriptors).
+
+* Additionally, information permitting the physical or online contacting of a specific individual is the same as personally identifiable information. This information can be maintained in either paper, electronic or other media.
+
+.citation[[https://www.dol.gov/general/ppii](https://www.dol.gov/general/ppii)]
+
+
+---
+
+
+class: large-visual
+
+## PII in Household Travel Survey Data
+
+Travel surveys combine household characteristics with detailed information about daily activities.
+
+&lt;img src="assets/original_pptx/image9.png" style="display:block;width:100%;height:490px;object-fit:contain" alt="Table of data elements available in household travel survey files"&gt;
+
+.citation[[https://www.psrc.org/media/3248](https://www.psrc.org/media/3248)]
+
+
+
+---
+
+
+## PII in Household Travel Survey Data
+
+.pull-left[
+&lt;img src="assets/original_pptx/image10.jpeg" style="display:block;width:100%;height:390px;object-fit:contain" alt="Illustration of one person's daily trip chain"&gt;
+]
+.pull-right[
+- Home, work, school, and other destinations can reveal routines and sensitive activities.
+- Each detail may seem harmless on its own. Together, they can narrow the possibilities.
+- **Example:** Someone recognizes a colleague's commute and uses it to link that person to a survey record.
+]
+
+&lt;div style="clear:both"&gt;&lt;/div&gt;
+
+
+---
+
+
+class: middle, inverse
+
+# Discussions
+
+
+
+---
+
+## Scenario: Publishing Household Travel Survey Data
+
+You are a city planner in charge of conducting a household travel survey to collect data on transportation patterns in your city. After gathering valuable insights, you want to publish the data publicly to support urban planning and policy-making. However, the data includes sensitive information, such as travel routes, GPS coordinates, and sociodemographic details, which could pose privacy risks if exposed.
+
+- What types of data could lead to ethical issues if made public?
+- What strategies would you use to secure the data and ensure its ethical use?
+--
+
+.privacy-balance[
+&gt; We should also think about how to balance privacy protection with other values, such as transparency, data democracy, innovation, and social progress.
+]
+
+---
+
+class: large-visual
+
+## Confidentiality Agreement: Virginia DOT
+
+&lt;embed src="assets/NHTS_Data_Request_Form_acc010423_PM.pdf#view=FitH" type="application/pdf" width="100%" height="470px"&gt;
+
+.citation[[https://www.vdot.virginia.gov/media/vdotvirginiagov/doing-business/technical-guidance-and-support/transportation-and-mobility/transportation-modeling/NHTS_Data_Request_Form_acc010423_PM.pdf](https://www.vdot.virginia.gov/media/vdotvirginiagov/doing-business/technical-guidance-and-support/transportation-and-mobility/transportation-modeling/NHTS_Data_Request_Form_acc010423_PM.pdf)]
+
+---
+
+class: large-visual
+
+## Transportation Secure Data Center
+
+&lt;img src="assets/original_pptx/image12.png" style="display:block;width:100%;height:490px;object-fit:contain" alt="Transportation Secure Data Center page showing cleansed and spatial data access"&gt;
+
+.citation[[https://www.nrel.gov/transportation/secure-transportation-data/](https://www.nrel.gov/transportation/secure-transportation-data/)]
+
+---
+
+class: large-visual
+
+## The 2011 Japan Earthquake Case
+
+&lt;img src="assets/original_pptx/image11.jpeg" style="display:block;width:100%;height:390px;object-fit:contain" alt="People sheltering after the 2011 Japan earthquake"&gt;
+
+Following the 2011 Great East Japan Earthquake, the Japanese government allowed the University of Tokyo Disaster Information Center to conduct research and surveys involving survivors of the earthquake under strict protocols to minimize privacy risks and ensure ethical research practices.
+
+.citation[[https://www.britannica.com/event/Japan-earthquake-and-tsunami-of-2011/Relief-and-rebuilding-efforts](https://www.britannica.com/event/Japan-earthquake-and-tsunami-of-2011/Relief-and-rebuilding-efforts)]
+
+---
+
+class: geolocation-slide
+
+## Handling Geolocation Data Ethically
+
+.pull-left[
+- Aggregation
+- Respect for sensitive locations
+- Adjusting spatial/temporal resolution
+- Adding noise (perturbation)
+
+**A Key Consideration:**
+
+A delicate balance between leveraging its value for social well-being while protecting individuals' privacy.
+]
+.pull-right[
+&lt;img src="assets/original_pptx/image13.png" style="display:block;width:100%;height:450px;object-fit:contain" alt="Regional map of travel patterns"&gt;
+]
+
+---
+
+## Best Practices
+
+- Conduct an ethical review before starting projects.
+- Consider the broader impact and unintended consequences.
+- Ensure participants know exactly what data is being collected and why.
+- Anonymize and aggregate data.
+- Communicate data practices transparently with stakeholders.
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="assets/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+  "highlightStyle": "github",
+  "highlightLines": true,
+  "countIncrementalSlides": false,
+  "ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// add `data-at-shortcutkeys` attribute to <body> to resolve conflicts with JAWS
+// screen reader (see PR #262)
+(function(d) {
+  let res = {};
+  d.querySelectorAll('.remark-help-content table tr').forEach(tr => {
+    const t = tr.querySelector('td:nth-child(2)').innerText;
+    tr.querySelectorAll('td:first-child .key').forEach(key => {
+      const k = key.innerText;
+      if (/^[a-z]$/.test(k)) res[k] = t;  // must be a single letter (key)
+    });
+  });
+  d.body.setAttribute('data-at-shortcutkeys', JSON.stringify(res));
+})(document);
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+  </body>
+</html>
